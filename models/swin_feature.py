@@ -41,35 +41,45 @@ class SwinFeatureNet(nn.Module):
             )
             self.layers.append(layer)
 
-        self.inner1 = nn.Conv2d(self.embed_dim * 2, 64, 1, bias=True)
-        self.inner2 = nn.Conv2d(self.embed_dim, 64, 1, bias=True)
+
         # Extra 1x1 convolutions to match FeatureNet's output channel sizes
         self.output1 = nn.Conv2d(self.embed_dim * 4, 64, 1, bias=False)  # Swin Stage 3 → 64 channels
+        self.inner1 = nn.Conv2d(self.embed_dim * 2, 64, 1, bias=True)
+        self.inner2 = nn.Conv2d(self.embed_dim, 64, 1, bias=True)
         self.output2 = nn.Conv2d(self.embed_dim * 2, 32, 1, bias=False)  # Swin Stage 2 → 32 channels
         self.output3 = nn.Conv2d(self.embed_dim, 16, 1, bias=False)  # Swin Stage 1 → 16 channels
 
     def forward(self, x: torch.Tensor):
         """
-        Input:x: Image tensor [B, 3, H, W]
+        Input: x: Image tensor [B, 3, H, W]
         Output: output_feature: Dictionary with features from 3 stages
         """
-        output_feature = {}
-        # Convert image into patch embeddings
+        #patch embeddings
         x = self.patch_embed(x)  # Shape: [B, N, C]
+        features = {}
 
+        # interation all stage
         for i, layer in enumerate(self.layers):
-            x = layer(x)  # Process with Swin Transformer layers
+            x = layer(x)  #output：[B, N, C]，C will be increased with stage
             B, L, C = x.shape
             H = self.patch_embed.patches_resolution[0] // (2 ** i)
             W = self.patch_embed.patches_resolution[1] // (2 ** i)
             x_reshaped = x.view(B, H, W, C).permute(0, 3, 1, 2).contiguous()  # [B, C, H, W]
+            features[i] = x_reshaped
 
-            # Save feature maps at 3 different scales
-            if i == 0:
-                output_feature[1] = self.output3(x_reshaped) #64 channels
-            elif i == 1:
-                output_feature[2] = self.output2(x_reshaped)#32 channels
-            elif i == 2:
-                output_feature[3] = self.output1(x_reshaped)#16 channels
+        # Stage 3 feature
+        f3 = self.output1(features[2])  # [B, 64, H/4, W/4]
 
+        # Stage 2 feature fusion：f3 上采样到 Stage 2 的分辨率，fusion with inner1(features[1])
+        f2_inner = self.inner1(features[1])  # [B, 64, H/2, W/2]
+        f3_up = F.interpolate(f3, scale_factor=2.0, mode='bilinear', align_corners=False)  # [B, 64, H/2, W/2]
+        fused_f2 = f3_up + f2_inner
+        f2_out = self.output2(fused_f2)  # [B, 32, H/2, W/2]
+
+        # Stage 1 feature fusion：将 fused_f2 上采样到 Stage 1 的分辨率，fusion with inner2(features[0]) 
+        f1_inner = self.inner2(features[0])  # [B, 64, H, W]
+        fused_f1 = F.interpolate(fused_f2, scale_factor=2.0, mode='bilinear', align_corners=False) + f1_inner  # [B, 64, H, W]
+        f1_out = self.output3(fused_f1)  # [B, 16, H, W]
+
+        output_feature = {3: f3, 2: f2_out, 1: f1_out}
         return output_feature
