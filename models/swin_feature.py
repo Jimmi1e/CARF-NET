@@ -41,6 +41,8 @@ class SwinFeatureNet(nn.Module):
             )
             self.layers.append(layer)
 
+        self.inner1 = nn.Conv2d(self.embed_dim * 2, 64, 1, bias=True)
+        self.inner2 = nn.Conv2d(self.embed_dim, 64, 1, bias=True)
         # Extra 1x1 convolutions to match FeatureNet's output channel sizes
         self.output1 = nn.Conv2d(self.embed_dim * 4, 64, 1, bias=False)  # Swin Stage 3 → 64 channels
         self.output2 = nn.Conv2d(self.embed_dim * 2, 32, 1, bias=False)  # Swin Stage 2 → 32 channels
