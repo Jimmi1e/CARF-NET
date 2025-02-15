@@ -69,6 +69,7 @@ class TransformerFeature(nn.Module):
             else:
                 H, W = self.patch_embed.patches_resolution[0] // (2 ** (i+1)), self.patch_embed.patches_resolution[1] // (2 ** (i+1)) 
             x_reshaped = x.view(B, H, W, C).permute(0, 3, 1, 2).contiguous()
+            x_reshaped=F.interpolate(x_reshaped, scale_factor=2.0, mode="bilinear", align_corners=False) 
             feature_list.append(x_reshaped)
         output_feature[3] = self.output1(feature_list[-1])
         print(output_feature[3].size())
@@ -209,6 +210,7 @@ class PatchmatchNet(nn.Module):
         patchmatch_num_sample: List[int],
         propagate_neighbors: List[int],
         evaluate_neighbors: List[int],
+        featureNet='FeatureNet'
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -223,7 +225,10 @@ class PatchmatchNet(nn.Module):
         super(PatchmatchNet, self).__init__()
 
         self.stages = 4
-        self.feature = FeatureNet()
+        if featureNet == 'FeatureNet':
+            self.feature = FeatureNet()
+        elif featureNet == 'TransformerFeature':
+            self.feature = TransformerFeature()
         self.patchmatch_num_sample = patchmatch_num_sample
 
         num_features = [16, 32, 64]
