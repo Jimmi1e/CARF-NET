@@ -96,6 +96,7 @@ model = PatchmatchNet(
     propagate_neighbors=args.propagate_neighbors,
     evaluate_neighbors=args.evaluate_neighbors
 )
+
 if args.parallel and args.mode in ["train", "val"]:
     model = nn.DataParallel(model)
 model.cuda()

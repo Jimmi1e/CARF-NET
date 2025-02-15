@@ -14,8 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_
 
-from .swin_transformer import SwinTransformer
-from .swin_transformer_v2 import SwinTransformerV2
+from swin_transformer_v2 import SwinTransformerV2
 
 
 def norm_targets(targets, patch_size):
@@ -38,42 +37,6 @@ def norm_targets(targets, patch_size):
     return targets_
 
 
-class SwinTransformerForSimMIM(SwinTransformer):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        assert self.num_classes == 0
-
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim))
-        trunc_normal_(self.mask_token, mean=0., std=.02)
-
-    def forward(self, x, mask):
-        x = self.patch_embed(x)
-
-        assert mask is not None
-        B, L, _ = x.shape
-
-        mask_tokens = self.mask_token.expand(B, L, -1)
-        w = mask.flatten(1).unsqueeze(-1).type_as(mask_tokens)
-        x = x * (1. - w) + mask_tokens * w
-
-        if self.ape:
-            x = x + self.absolute_pos_embed
-        x = self.pos_drop(x)
-
-        for layer in self.layers:
-            x = layer(x)
-        x = self.norm(x)
-
-        x = x.transpose(1, 2)
-        B, C, L = x.shape
-        H = W = int(L ** 0.5)
-        x = x.reshape(B, C, H, W)
-        return x
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return super().no_weight_decay() | {'mask_token'}
 
 
 class SwinTransformerV2ForSimMIM(SwinTransformerV2):
