@@ -4,8 +4,83 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .module import ConvBnReLU, depth_regression
 from .patchmatch import PatchMatch
+from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
 
+class TransformerFeature(nn.Module):
+    """Transformer Feature Network: to extract features of transformed images from each view"""
 
+    def __init__(self,img_size=512,window_size=8, mlp_ratio=4., qkv_bias=True,
+                 drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,use_checkpoint=False,
+                 pretrained_window_sizes=[0, 0, 0, 0]):
+        """Initialize different layers in the network"""
+
+        super(TransformerFeature, self).__init__()
+        self.embed_dim=96
+        self.depths=[2,2,6,2]
+        self.num_heads=[3, 6, 12, 24]
+        self.mlp_ratio = mlp_ratio
+        self.num_layers=len(self.depths)
+        self.patch_embed = PatchEmbed(
+            img_size=img_size, patch_size=2, in_chans=3, embed_dim=self.embed_dim,
+            norm_layer=nn.LayerNorm )
+        patches_resolution = self.patch_embed.patches_resolution
+        self.patches_resolution = patches_resolution
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(self.depths))]
+        self.layers = nn.ModuleList()
+        for i_layer in range(self.num_layers):
+            layer = BasicLayer(dim=int(self.embed_dim * 2 ** i_layer),
+                               input_resolution=(patches_resolution[0] // (2 ** i_layer),
+                                                 patches_resolution[1] // (2 ** i_layer)),
+                               depth=self.depths[i_layer],
+                               num_heads=self.num_heads[i_layer],
+                               window_size=window_size,
+                               mlp_ratio=self.mlp_ratio,
+                               qkv_bias=qkv_bias,
+                               drop=drop_rate, attn_drop=attn_drop_rate,
+                               drop_path=dpr[sum(self.depths[:i_layer]):sum(self.depths[:i_layer + 1])],
+                               norm_layer=nn.LayerNorm,
+                               downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
+                               use_checkpoint=use_checkpoint,
+                               pretrained_window_size=pretrained_window_sizes[i_layer])
+            self.layers.append(layer)
+        self.output1 = nn.Conv2d(self.embed_dim*8, 64, 1, bias=False)
+        self.inner1 = nn.Conv2d(self.embed_dim*4, 64, 1, bias=True)
+        self.inner2 = nn.Conv2d(self.embed_dim*2, 64, 1, bias=True)
+        self.output2 = nn.Conv2d(64, 32, 1, bias=False)
+        self.output3 = nn.Conv2d(64, 16, 1, bias=False)
+    def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
+        """Forward method
+
+        Args:
+            x: images from a single view, in the shape of [B, C, H, W]. Generally, C=3
+
+        Returns:
+            output_feature: a python dictionary contains extracted features from stage 1 to stage 3
+                keys are 1, 2, and 3
+        """
+        output_feature: Dict[int, torch.Tensor] = {}
+        x = self.patch_embed(x)
+        feature_list=[]
+        for i,layer in enumerate(self.layers):
+            x = layer(x)
+            B, L, C = x.shape
+            if i == len(self.layers) - 1:
+                H, W = self.patch_embed.patches_resolution[0] // (2 ** (i)), self.patch_embed.patches_resolution[1] // (2 ** (i)) 
+            else:
+                H, W = self.patch_embed.patches_resolution[0] // (2 ** (i+1)), self.patch_embed.patches_resolution[1] // (2 ** (i+1)) 
+            x_reshaped = x.view(B, H, W, C).permute(0, 3, 1, 2).contiguous()
+            feature_list.append(x_reshaped)
+        output_feature[3] = self.output1(feature_list[-1])
+        print(output_feature[3].size())
+        intra_feat = F.interpolate(output_feature[3], scale_factor=2.0, mode="bilinear", align_corners=False) 
+        inner1=self.inner1(feature_list[-3])
+        output_feature[2] = self.output2(intra_feat+inner1)
+        print(output_feature[2].size())
+        intra_feat = F.interpolate(
+            intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(feature_list[-4])
+        output_feature[1] = self.output3(intra_feat)
+        print(output_feature[1].size())
+        return output_feature
 class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
 
@@ -47,23 +122,24 @@ class FeatureNet(nn.Module):
                 keys are 1, 2, and 3
         """
         output_feature: Dict[int, torch.Tensor] = {}
-
+        
         conv1 = self.conv1(self.conv0(x))
         conv4 = self.conv4(self.conv3(self.conv2(conv1)))
 
         conv7 = self.conv7(self.conv6(self.conv5(conv4)))
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
-
+        
+        print(conv10.size())
         output_feature[3] = self.output1(conv10)
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
-
-        output_feature[2] = self.output2(intra_feat)
+        print(intra_feat.size())
+        output_feature[2] = self.output2(intra_feat)  
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
-
+        print(intra_feat.size())
         output_feature[1] = self.output3(intra_feat)
         del intra_feat
 
