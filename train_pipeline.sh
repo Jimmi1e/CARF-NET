@@ -71,7 +71,7 @@ sleep 30
 
 
 # test on DTU's evaluation set
-MVS_TRAINING=""/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/""
+MVS_TRAINING="/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/"
 echo "Running Training processing..."
 echo "================================================"
 srun python train_dtu.py --batch_size 4 --epochs 8 --trainpath=$MVS_TRAINING --trainlist lists/dtu/train.txt \
