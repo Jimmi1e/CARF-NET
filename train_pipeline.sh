@@ -1,6 +1,6 @@
 #!/encs/bin/tcsh
 
-#SBATCH --job-name PatchmatchNet-eval
+#SBATCH --job-name Training—swin-pmnet
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yuhangchen0425@gmail.com
 #SBATCH --chdir=./
@@ -69,15 +69,13 @@ conda list
 
 sleep 30
 
-CHECKPOINT_FILE="./checkpoints/params_000007.ckpt"
 
 # test on DTU's evaluation set
-DTU_TESTING="/home/dtu/"
-echo "Running eval processing..."
+MVS_TRAINING=""/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/""
+echo "Running Training processing..."
 echo "================================================"
-srun python eval.py --scan_list ./lists/dtu/test.txt --input_folder=$DTU_TESTING --output_folder=$DTU_TESTING \
---checkpoint_path $CHECKPOINT_FILE --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.8 "$@"
-# srun python yolo_video.py --input video/v1.avi --output video/001.avi #--gpu_num 1
+srun python train_dtu.py --batch_size 4 --epochs 8 --trainpath=$MVS_TRAINING --trainlist lists/dtu/train.txt \
+--vallist lists/dtu/val.txt --logdir ./checkpoints "$@"
 
 conda deactivate
 exit

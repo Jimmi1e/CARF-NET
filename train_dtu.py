@@ -94,7 +94,8 @@ model = PatchmatchNet(
     patchmatch_iteration=args.patchmatch_iteration,
     patchmatch_num_sample=args.patchmatch_num_sample,
     propagate_neighbors=args.propagate_neighbors,
-    evaluate_neighbors=args.evaluate_neighbors
+    evaluate_neighbors=args.evaluate_neighbors,
+    featureNet='TransformerFeature'
 )
 if args.parallel and args.mode in ["train", "val"]:
     model = nn.DataParallel(model)
