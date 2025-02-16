@@ -5,10 +5,10 @@ import torch.nn.functional as F
 from .module import ConvBnReLU, depth_regression
 from .patchmatch import PatchMatch
 from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
-
+from .repvit_feature import RepViTNet
+from .repvit_feature11 import RepViTNet11
 class TransformerFeature(nn.Module):
     """Transformer Feature Network: to extract features of transformed images from each view"""
-
     def __init__(self,img_size=512,window_size=8, mlp_ratio=4., qkv_bias=True,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,use_checkpoint=False,
                  pretrained_window_sizes=[0, 0, 0, 0]):
@@ -230,6 +230,8 @@ class PatchmatchNet(nn.Module):
             self.feature = FeatureNet()
         elif featureNet == 'TransformerFeature':
             self.feature = TransformerFeature(img_size=image_size)
+        elif featureNet=='RepViTNet':
+            self.feature = RepViTNet(ckpt_path="checkpoints/repvit_m1_5_distill_450e.pth")# new add Jiaxi
         self.patchmatch_num_sample = patchmatch_num_sample
 
         num_features = [16, 32, 64]
