@@ -17,20 +17,20 @@ def compare_feature_nets():
     with torch.no_grad():
         snet_outputs = snet(dummy_input)
     
-    print("=== CNN FeatureNet 输出形状 ===")
+    print("=== CNN FeatureNet Output Shape ===")
     for stage, feat in cnet_outputs.items():
         print(f"Stage {stage}: {feat.shape}")
     
-    print("\n=== SwinFeatureNet 输出形状 ===")
+    print("\n=== SwinFeatureNet Output Shape ===")
     for stage, feat in snet_outputs.items():
         print(f"Stage {stage}: {feat.shape}")
     
 
     for stage in [1, 2, 3]:
         assert cnet_outputs[stage].shape == snet_outputs[stage].shape, \
-            f"Stage {stage} 形状不匹配: CNN版 {cnet_outputs[stage].shape}, Swin版 {snet_outputs[stage].shape}"
+            f"Stage {stage} Mismatch: CNN {cnet_outputs[stage].shape}, RepViT {snet_outputs[stage].shape}"
     
-    print("\nShape Match Pass：两者在 Stage 1/2/3 的输出形状一致！")
+    print("\nShape Match Pass: The shapes of Stage 1/2/3 are matched!")
 
 if __name__ == "__main__":
     compare_feature_nets()

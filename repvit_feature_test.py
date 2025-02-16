@@ -1,22 +1,17 @@
 import torch
 import torch.nn as nn
 
-# Adjust these imports to match your actual file locations/names
-from models.net import FeatureNet         # Original CNN FeatureNet
-from models.repvit_feature import RepViTNet  # Your RepViT-based feature extractor
+from models.net import FeatureNet
+from models.repvit_feature import RepViTNet
 
 def compare_feature_nets_repvit():
-    # Create a dummy input of shape [B, 3, H, W] with H=W=512
     dummy_input = torch.randn(1, 3, 512, 512)
 
-    # Instantiate and evaluate the original CNN FeatureNet
     cnet = FeatureNet()
     cnet.eval()
     with torch.no_grad():
         cnet_outputs = cnet(dummy_input)
 
-    # Instantiate and evaluate the RepViT-based feature extractor
-    # If you have a checkpoint, you can pass it here, e.g. ckpt_path="./checkpoints/repvit_m1_5_distill_450e.pth"
     rnet = RepViTNet()
     rnet.eval()
     with torch.no_grad():
