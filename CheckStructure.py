@@ -13,8 +13,8 @@ if __name__ == '__main__':
         patchmatch_num_sample=[8, 8, 16],
         propagate_neighbors=[0, 8, 16],
         evaluate_neighbors=[9, 9, 9],
-        featureNet='TransformerFeature',
-        image_size=(512,640)
+        featureNet='RepViTNet',
+        # image_size=(512,640)
     )
     # 创建测试数据
     images = [torch.rand( 1,3, 512, 640) for _ in range(2)]
@@ -27,6 +27,7 @@ if __name__ == '__main__':
     print("Photometric Confidence:", output[1])
     print("Depth Patchmatch:", output[2])
     #-----------------------------------------------#
+    model =RepViTNet()
     # model=TransformerFeature()
     
     # model=SwinTransformerV2()
