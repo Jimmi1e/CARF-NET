@@ -95,7 +95,8 @@ model = PatchmatchNet(
     patchmatch_num_sample=args.patchmatch_num_sample,
     propagate_neighbors=args.propagate_neighbors,
     evaluate_neighbors=args.evaluate_neighbors,
-    featureNet='TransformerFeature'
+    featureNet='TransformerFeature',
+    image_size=(512,640)
 )
 if args.parallel and args.mode in ["train", "val"]:
     model = nn.DataParallel(model)

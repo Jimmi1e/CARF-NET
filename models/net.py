@@ -72,15 +72,15 @@ class TransformerFeature(nn.Module):
             x_reshaped=F.interpolate(x_reshaped, scale_factor=2.0, mode="bilinear", align_corners=False) 
             feature_list.append(x_reshaped)
         output_feature[3] = self.output1(feature_list[-1])
-        print(output_feature[3].size())
+        # print(output_feature[3].size())
         intra_feat = F.interpolate(output_feature[3], scale_factor=2.0, mode="bilinear", align_corners=False) 
         inner1=self.inner1(feature_list[-3])
         output_feature[2] = self.output2(intra_feat+inner1)
-        print(output_feature[2].size())
+        # print(output_feature[2].size())
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(feature_list[-4])
         output_feature[1] = self.output3(intra_feat)
-        print(output_feature[1].size())
+        # print(output_feature[1].size())
         return output_feature
 class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
@@ -210,7 +210,8 @@ class PatchmatchNet(nn.Module):
         patchmatch_num_sample: List[int],
         propagate_neighbors: List[int],
         evaluate_neighbors: List[int],
-        featureNet='FeatureNet'
+        featureNet='FeatureNet',
+        image_size=(512,512)
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -228,7 +229,7 @@ class PatchmatchNet(nn.Module):
         if featureNet == 'FeatureNet':
             self.feature = FeatureNet()
         elif featureNet == 'TransformerFeature':
-            self.feature = TransformerFeature()
+            self.feature = TransformerFeature(img_size=image_size)
         self.patchmatch_num_sample = patchmatch_num_sample
 
         num_features = [16, 32, 64]

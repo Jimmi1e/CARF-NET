@@ -11,10 +11,11 @@ if __name__ == '__main__':
         patchmatch_num_sample=[8, 8, 16],
         propagate_neighbors=[0, 8, 16],
         evaluate_neighbors=[9, 9, 9],
-        featureNet='TransformerFeature'
+        featureNet='TransformerFeature',
+        image_size=(512,640)
     )
     # 创建测试数据
-    images = [torch.rand( 1,3, 512, 512) for _ in range(2)]
+    images = [torch.rand( 1,3, 512, 640) for _ in range(2)]
     intrinsics = torch.rand(1, 2, 3, 3)
     extrinsics = torch.rand(1, 2, 4, 4)
     depth_min = torch.tensor([0.1])

@@ -69,13 +69,13 @@ conda list
 
 sleep 30
 
+set DTU_TRAINING = "/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/"
 
-# test on DTU's evaluation set
-MVS_TRAINING="/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/"
+# Training on DTU's data set
+
 echo "Running Training processing..."
 echo "================================================"
-srun python train_dtu.py --batch_size 4 --epochs 8 --trainpath=$MVS_TRAINING --trainlist lists/dtu/train.txt \
---vallist lists/dtu/val.txt --logdir ./checkpoints "$@"
+srun python train_dtu.py --batch_size 4 --epochs 8 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt --logdir ./checkpoints $argv
 
 conda deactivate
 exit
