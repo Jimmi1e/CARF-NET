@@ -2,7 +2,7 @@
 
 #SBATCH --job-name Training—swin-pmnet
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=yuhangchen0425@gmail.com
+#SBATCH --mail-user=yjxyang2@outlook.com
 #SBATCH --chdir=./
 #SBATCH -o output-%A.log
 
@@ -69,7 +69,7 @@ conda list
 
 sleep 30
 
-set DTU_TRAINING = "/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/"
+set DTU_TRAINING = "/nfs/speed-scratch/ya_jiaxi/dtuTrainingData/dtu/"
 
 # Training on DTU's data set
 
