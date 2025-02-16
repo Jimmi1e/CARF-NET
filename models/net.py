@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from .module import ConvBnReLU, depth_regression #.
 from .patchmatch import PatchMatch#.
 from .swin_feature import SwinFeatureNet#.
-
+from .repvit_feature import RepViTNet
 
 class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
@@ -134,6 +134,7 @@ class PatchmatchNet(nn.Module):
         patchmatch_num_sample: List[int],
         propagate_neighbors: List[int],
         evaluate_neighbors: List[int],
+        featureNet=None# new add Jiaxi
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -149,8 +150,14 @@ class PatchmatchNet(nn.Module):
 
         self.stages = 4
         # self.feature = FeatureNet()
-        self.feature = SwinFeatureNet()
-        self.patchmatch_num_sample = patchmatch_num_sample
+        # self.feature = SwinFeatureNet()
+        # self.feature = RepViTNet()
+        if featureNet is not None: # new add Jiaxi
+            self.feature = featureNet# new add Jiaxi
+        else:
+            self.feature = RepViTNet(ckpt_path="checkpoints/repvit_m1_5_distill_450e.pth")# new add Jiaxi
+            # self.feature = RepViTNet(ckpt_path="../checkpoints/repvit_m1_5_distill_450e.pth")# new add Jiaxi
+        self.patchmatch_num_sample = patchmatch_num_sample# new add Jiaxi
 
         num_features = [16, 32, 64]
 
