@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.repvit import repvit_m1_5  
+from models.repvit import repvit_m1_5, repvit_m1_1  
 
 def feature_check(input_size=(3, 512, 512), batch_size=1, device="cpu"):
     model = repvit_m1_5(pretrained=False)

@@ -6,6 +6,7 @@ from .module import ConvBnReLU, depth_regression #.
 from .patchmatch import PatchMatch#.
 from .swin_feature import SwinFeatureNet#.
 from .repvit_feature import RepViTNet
+from .repvit_feature11 import RepViTNet11
 
 class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
@@ -152,6 +153,7 @@ class PatchmatchNet(nn.Module):
         # self.feature = FeatureNet()
         # self.feature = SwinFeatureNet()
         # self.feature = RepViTNet()
+        # self.feature = RepViTNet11()
         if featureNet is not None: # new add Jiaxi
             self.feature = featureNet# new add Jiaxi
         else:
