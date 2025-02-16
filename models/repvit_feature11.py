@@ -73,12 +73,12 @@ from typing import Dict, List
 
 from .repvit import repvit_m1_1
 
-class RepViTNet11(nn.Module):
+class RepViTNet(nn.Module):
     """
     Feature extraction network using the RepViT backbone.
     """
     def __init__(self, ckpt_path=None):
-        super(RepViTNet11, self).__init__()
+        super(RepViTNet, self).__init__()
         self.backbone = repvit_m1_1(pretrained=False)
 
         self.output1 = nn.Conv2d(512, 64, kernel_size=1, bias=False)
@@ -105,7 +105,7 @@ class RepViTNet11(nn.Module):
         
         output_feature: Dict[int, torch.Tensor] = {}
         shallow_feature = features[3] #shallow 
-        intermediate_feature = features[16]#intermediate
+        intermediate_feature = features[21]#intermediate
         deep_feature = features[-1]#dedep 
         
         # Stage 3 (Deep):

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from models.repvit import repvit_m1_5, repvit_m1_1  
 
 def feature_check(input_size=(3, 512, 512), batch_size=1, device="cpu"):
-    model = repvit_m1_5(pretrained=False)
+    model = repvit_m1_1(pretrained=False)
     model = model.to(device)
     
     dummy_input = torch.randn(batch_size, *input_size, device=device)
