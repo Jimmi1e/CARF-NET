@@ -419,8 +419,8 @@ def patchmatchnet_loss(
     """
     loss = 0
     for i in range(0, 4):
-        gt_depth = depth_gt[i][mask[i]]
+        gt_depth = depth_gt[i][mask[i].bool()]
         for depth in depth_patchmatch[i]:
-            loss = loss + F.smooth_l1_loss(depth[mask[i]], gt_depth, reduction="mean")
+            loss = loss + F.smooth_l1_loss(depth[mask[i].bool()], gt_depth, reduction="mean")
 
     return loss
