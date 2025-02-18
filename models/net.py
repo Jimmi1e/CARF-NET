@@ -130,18 +130,21 @@ class FeatureNet(nn.Module):
         conv7 = self.conv7(self.conv6(self.conv5(conv4)))
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
         
-        print(conv10.size())
+        
         output_feature[3] = self.output1(conv10)
+        # print(output_feature[3].size())
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
-        print(intra_feat.size())
-        output_feature[2] = self.output2(intra_feat)  
+        
+        output_feature[2] = self.output2(intra_feat) 
+        # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
-        print(intra_feat.size())
+        
         output_feature[1] = self.output3(intra_feat)
+        # print(output_feature[1].size())
         del intra_feat
 
         return output_feature
@@ -232,6 +235,8 @@ class PatchmatchNet(nn.Module):
             self.feature = TransformerFeature(img_size=image_size)
         elif featureNet=='RepViTNet':
             self.feature = RepViTNet(ckpt_path="checkpoints/repvit_m1_5_distill_450e.pth")# new add Jiaxi
+        elif featureNet=="RepViTNet11":
+            self.feature = RepViTNet11()
         self.patchmatch_num_sample = patchmatch_num_sample
 
         num_features = [16, 32, 64]
@@ -391,8 +396,8 @@ def adjust_image_dims(
     _, _, ref_height, ref_width = images[0].size()
     for i in range(len(images)):
         _, _, height, width = images[i].size()
-        new_height = int(round(height / 8)) * 8
-        new_width = int(round(width / 8)) * 8
+        new_height = int(round(height / 32)) * 32
+        new_width = int(round(width / 32)) * 32
         if new_width != width or new_height != height:
             intrinsics[:, i, 0] *= new_width / width
             intrinsics[:, i, 1] *= new_height / height
