@@ -6,3 +6,8 @@ models/__pycache__/swin_transformer_v2.cpython-312.pyc
 models/__pycache__/repvit_feature.cpython-312.pyc
 models/__pycache__/repvit_feature11.cpython-312.pyc
 models/__pycache__/repvit.cpython-312.pyc
+models/__pycache__/swin_feature.cpython-312.pyc
+__pycache__/utils.cpython-312.pyc
+datasets/__pycache__/__init__.cpython-312.pyc
+datasets/__pycache__/data_io.cpython-312.pyc
+datasets/__pycache__/mvs.cpython-312.pyc
