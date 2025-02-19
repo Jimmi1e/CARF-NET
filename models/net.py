@@ -7,6 +7,7 @@ from .patchmatch import PatchMatch
 from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
 from .repvit_feature import RepViTNet
 from .repvit_feature11 import RepViTNet11
+from .repvit_feature0_9 import RepViTNet09
 class TransformerFeature(nn.Module):
     """Transformer Feature Network: to extract features of transformed images from each view"""
     def __init__(self,img_size=512,window_size=8, mlp_ratio=4., qkv_bias=True,
@@ -214,7 +215,8 @@ class PatchmatchNet(nn.Module):
         propagate_neighbors: List[int],
         evaluate_neighbors: List[int],
         featureNet='FeatureNet',
-        image_size=(512,512)
+        image_size=(512,512),
+        num_features = [16, 32, 64]
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -236,10 +238,12 @@ class PatchmatchNet(nn.Module):
         elif featureNet=='RepViTNet':
             self.feature = RepViTNet(ckpt_path="checkpoints/repvit_m1_5_distill_450e.pth")# new add Jiaxi
         elif featureNet=="RepViTNet11":
-            self.feature = RepViTNet11()
+            self.feature = RepViTNet11(ckpt_path="checkpoints/repvit_m1_1_distill_450e.pth")
+        elif featureNet=="RepViTNet09":
+            self.feature = RepViTNet09(ckpt_path="checkpoints/repvit_m0_9_distill_450e.pth")
         self.patchmatch_num_sample = patchmatch_num_sample
 
-        num_features = [16, 32, 64]
+        # num_features = [16, 32, 64]  #move to init
 
         self.propagate_neighbors = propagate_neighbors
         self.evaluate_neighbors = evaluate_neighbors
