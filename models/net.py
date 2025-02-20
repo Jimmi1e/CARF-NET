@@ -8,6 +8,7 @@ from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
 from .repvit_feature import RepViTNet
 from .repvit_feature11 import RepViTNet11
 from .repvit_feature0_9 import RepViTNet09
+from .FMT import FMT_with_pathway
 class TransformerFeature(nn.Module):
     """Transformer Feature Network: to extract features of transformed images from each view"""
     def __init__(self,img_size=512,window_size=8, mlp_ratio=4., qkv_bias=True,
@@ -214,6 +215,7 @@ class PatchmatchNet(nn.Module):
         patchmatch_num_sample: List[int],
         propagate_neighbors: List[int],
         evaluate_neighbors: List[int],
+        use_FMT=False,
         featureNet='FeatureNet',
         image_size=(512,512),
         num_features = [16, 32, 64]
@@ -229,7 +231,7 @@ class PatchmatchNet(nn.Module):
             evaluate_neighbors: number of propagation neighbors for evaluation
         """
         super(PatchmatchNet, self).__init__()
-
+        self.use_FMT = use_FMT
         self.stages = 4
         if featureNet == 'FeatureNet':
             self.feature = FeatureNet()
@@ -244,7 +246,8 @@ class PatchmatchNet(nn.Module):
         self.patchmatch_num_sample = patchmatch_num_sample
 
         # num_features = [16, 32, 64]  #move to init
-
+        if use_FMT:
+            self.FMT_with_pathway = FMT_with_pathway()
         self.propagate_neighbors = propagate_neighbors
         self.evaluate_neighbors = evaluate_neighbors
         # number of groups for group-wise correlation
@@ -298,6 +301,9 @@ class PatchmatchNet(nn.Module):
             output_feature = self.feature(img)
             features.append(output_feature)
         del images
+        ## Add FMT
+        if self.use_FMT:
+            features = self.FMT_with_pathway(features)
         ref_feature, src_features = features[0], features[1:]
 
         depth_min = depth_min.float()

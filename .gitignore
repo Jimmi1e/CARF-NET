@@ -11,3 +11,9 @@ __pycache__/utils.cpython-312.pyc
 datasets/__pycache__/__init__.cpython-312.pyc
 datasets/__pycache__/data_io.cpython-312.pyc
 datasets/__pycache__/mvs.cpython-312.pyc
+models/__pycache__/repvit_feature0_9.cpython-312.pyc
+models/net.py
+models/__pycache__/FMT.cpython-312.pyc
+models/__pycache__/position_encoding.cpython-312.pyc
+checkpoints/model1_1_000007.ckpt
+checkpoints/model1_5_000005.ckpt

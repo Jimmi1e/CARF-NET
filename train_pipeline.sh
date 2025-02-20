@@ -30,7 +30,8 @@ mkdir -p $PKGS_DIR
 setenv TMP $TMP_DIR
 setenv TMPDIR $TMP_DIR
 setenv CONDA_PKGS_DIRS $PKGS_DIR
-
+setenv PYTORCH_CUDA_ALLOC_CONF "expandable_segments:True"
+setenv CUDA_VISIBLE_DEVICES 0
 # Check if the environment exists
 conda env list | grep "$ENV_NAME"
 if ($status == 0) then
@@ -67,6 +68,8 @@ echo "============================"
 conda info --envs
 conda list
 
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+nvidia-smi
 sleep 30
 
 set DTU_TRAINING = "/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/"
@@ -75,7 +78,7 @@ set DTU_TRAINING = "/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/"
 
 echo "Running Training processing..."
 echo "================================================"
-python train_dtu.py --batch_size 4 --epochs 8 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt --logdir ./checkpoints --parallel
+python train_dtu.py --batch_size 2 --epochs 8 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt --logdir ./checkpoints/debug09 --parallel
 
 conda deactivate
 exit

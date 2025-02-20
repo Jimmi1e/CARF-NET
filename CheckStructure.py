@@ -5,6 +5,8 @@ from models.repvit_feature import RepViTNet
 from models.repvit_feature0_9 import RepViTNet09
 from torchsummary import summary
 import torch
+import torchvision.models as models
+import torch.nn as nn
 if __name__ == '__main__':
     
     model=PatchmatchNet(
@@ -14,9 +16,10 @@ if __name__ == '__main__':
         patchmatch_num_sample=[8, 8, 16],
         propagate_neighbors=[0, 8, 16],
         evaluate_neighbors=[9, 9, 9],
-        featureNet='RepViTNet09',
+        use_FMT=True
+        # featureNet='RepViTNet09',
         # image_size=(512,640)
-        num_features = [32, 96, 192]
+        # num_features = [32, 96, 192]
     )
     # for name, param in model.named_parameters():
     #     print(name, param.data.size())
@@ -37,5 +40,9 @@ if __name__ == '__main__':
     # model=SwinTransformerV2()
     # summary(model, input_size=(3, 224, 224), batch_size=1, device="cpu")
     # model = FeatureNet()
-    
     # summary(model, input_size=(3, 512, 640), batch_size=1,device="cpu")
+    # model = models.resnet18()
+    
+    # # model = nn.Sequential(*list(model.children())[:-2])
+    # resnet=model.layer1
+    # summary(resnet, input_size=(3, 512, 640), batch_size=1,device="cpu")
