@@ -406,8 +406,8 @@ def adjust_image_dims(
     _, _, ref_height, ref_width = images[0].size()
     for i in range(len(images)):
         _, _, height, width = images[i].size()
-        new_height = int(round(height / 32)) * 32
-        new_width = int(round(width / 32)) * 32
+        new_height = int(round(height / 8)) * 8
+        new_width = int(round(width / 8)) * 8
         if new_width != width or new_height != height:
             intrinsics[:, i, 0] *= new_width / width
             intrinsics[:, i, 1] *= new_height / height
