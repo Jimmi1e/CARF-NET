@@ -10,7 +10,7 @@
 #SBATCH --mem=60G
 #SBATCH -n 32
 #SBATCH --gpus=1
-#SBATCH -p pt
+#SBATCH -p ps
 
 # Load required modules
 module load anaconda3/2023.03/default

@@ -9,6 +9,7 @@ from .repvit_feature import RepViTNet
 from .repvit_feature11 import RepViTNet11
 from .repvit_feature0_9 import RepViTNet09
 from .FMT import FMT_with_pathway
+from .dcn import DCN
 class TransformerFeature(nn.Module):
     """Transformer Feature Network: to extract features of transformed images from each view"""
     def __init__(self,img_size=512,window_size=8, mlp_ratio=4., qkv_bias=True,
@@ -87,7 +88,7 @@ class TransformerFeature(nn.Module):
 class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
 
-    def __init__(self):
+    def __init__(self,use_ARF=False):
         """Initialize different layers in the network"""
 
         super(FeatureNet, self).__init__()
@@ -108,11 +109,40 @@ class FeatureNet(nn.Module):
         self.conv9 = ConvBnReLU(64, 64, 3, 1, 1)
         self.conv10 = ConvBnReLU(64, 64, 3, 1, 1)
 
-        self.output1 = nn.Conv2d(64, 64, 1, bias=False)
+        if use_ARF:
+            self.out1 = nn.Sequential(
+                    ConvBnReLU(64, 64, 1,1,0),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1))
+            self.out2 = nn.Sequential(
+                    ConvBnReLU(64, 64, 3,1,1),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=32, kernel_size=3,stride=1, padding=1))
+            self.out3 = nn.Sequential(
+                    ConvBnReLU(64, 64, 3,1,1),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=16, kernel_size=3,stride=1, padding=1))
+        else:
+            self.output1 = nn.Conv2d(64, 64, 1, bias=False)
+            self.output2 = nn.Conv2d(64, 32, 1, bias=False)
+            self.output3 = nn.Conv2d(64, 16, 1, bias=False)
         self.inner1 = nn.Conv2d(32, 64, 1, bias=True)
         self.inner2 = nn.Conv2d(16, 64, 1, bias=True)
-        self.output2 = nn.Conv2d(64, 32, 1, bias=False)
-        self.output3 = nn.Conv2d(64, 16, 1, bias=False)
 
     def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
         """Forward method
@@ -132,19 +162,19 @@ class FeatureNet(nn.Module):
         conv7 = self.conv7(self.conv6(self.conv5(conv4)))
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
         
-        
+        # output_feature[3] = self.out1(conv10)
         output_feature[3] = self.output1(conv10)
         # print(output_feature[3].size())
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
-        
+        # output_feature[2] = self.out2(intra_feat) 
         output_feature[2] = self.output2(intra_feat) 
         # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
-        
+        # output_feature[1] = self.out3(intra_feat) 
         output_feature[1] = self.output3(intra_feat)
         # print(output_feature[1].size())
         del intra_feat
@@ -215,6 +245,7 @@ class PatchmatchNet(nn.Module):
         patchmatch_num_sample: List[int],
         propagate_neighbors: List[int],
         evaluate_neighbors: List[int],
+        use_ARF=False,
         use_FMT=False,
         featureNet='FeatureNet',
         image_size=(512,512),
@@ -234,7 +265,7 @@ class PatchmatchNet(nn.Module):
         self.use_FMT = use_FMT
         self.stages = 4
         if featureNet == 'FeatureNet':
-            self.feature = FeatureNet()
+            self.feature = FeatureNet(use_ARF=use_ARF)
         elif featureNet == 'TransformerFeature':
             self.feature = TransformerFeature(img_size=image_size)
         elif featureNet=='RepViTNet':

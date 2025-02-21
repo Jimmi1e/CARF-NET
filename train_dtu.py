@@ -96,6 +96,7 @@ model = PatchmatchNet(
     propagate_neighbors=args.propagate_neighbors,
     evaluate_neighbors=args.evaluate_neighbors,
     featureNet='RepViTNet',
+    use_ARF=True
     # image_size=(512,640)
 )
 if args.parallel and args.mode in ["train", "val"]:
