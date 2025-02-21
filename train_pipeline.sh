@@ -10,7 +10,7 @@
 #SBATCH --mem=60G
 #SBATCH -n 32
 #SBATCH --gpus=1
-#SBATCH -p pt
+#SBATCH -p ps
 
 # Load required modules
 module load anaconda3/2023.03/default
@@ -78,7 +78,7 @@ set DTU_TRAINING = "/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/"
 
 echo "Running Training processing..."
 echo "================================================"
-python train_dtu.py --batch_size 2 --epochs 8 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt --logdir ./checkpoints/debug09 --parallel
+python train_dtu.py --batch_size 2 --epochs 8 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt --logdir ./checkpoints/debug_ARF_FMT --parallel
 
 conda deactivate
 exit
