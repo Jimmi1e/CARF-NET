@@ -110,7 +110,7 @@ class FeatureNet(nn.Module):
         self.conv10 = ConvBnReLU(64, 64, 3, 1, 1)
 
         if use_ARF:
-            self.out1 = nn.Sequential(
+            self.output1 = nn.Sequential(
                     ConvBnReLU(64, 64, 1,1,0),
                     DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
                     nn.BatchNorm2d(64),
@@ -119,7 +119,7 @@ class FeatureNet(nn.Module):
                     nn.BatchNorm2d(64),
                     nn.ReLU(inplace=True),
                     DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1))
-            self.out2 = nn.Sequential(
+            self.output2 = nn.Sequential(
                     ConvBnReLU(64, 64, 3,1,1),
                     DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
                     nn.BatchNorm2d(64),
@@ -128,7 +128,7 @@ class FeatureNet(nn.Module):
                     nn.BatchNorm2d(64),
                     nn.ReLU(inplace=True),
                     DCN(in_channels=64, out_channels=32, kernel_size=3,stride=1, padding=1))
-            self.out3 = nn.Sequential(
+            self.output3 = nn.Sequential(
                     ConvBnReLU(64, 64, 3,1,1),
                     DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
                     nn.BatchNorm2d(64),
