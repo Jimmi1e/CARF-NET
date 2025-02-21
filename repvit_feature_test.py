@@ -3,7 +3,8 @@ import torch.nn as nn
 
 from models.net import FeatureNet
 # from models.repvit_feature import RepViTNet
-from models.repvit_feature11 import RepViTNet
+#from models.repvit_feature11 import RepViTNet
+from models.liteFeatureNet import LightFeatureNet
 def compare_feature_nets_repvit():
     dummy_input = torch.randn(1, 3, 512, 512)
 
@@ -13,7 +14,7 @@ def compare_feature_nets_repvit():
         cnet_outputs = cnet(dummy_input)
 
     # rnet = RepViTNet11()
-    rnet = RepViTNet()
+    rnet = LightFeatureNet()
     rnet.eval()
     with torch.no_grad():
         rnet_outputs = rnet(dummy_input)

@@ -11,7 +11,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .module import ConvBnReLU3D, differentiable_warping, is_empty
+from .module import ConvBnReLU3D, differentiable_warping, is_empty, ConvBNReLU3D_Attention,HybridAttentionNet
+
 
 
 class DepthInitialization(nn.Module):
@@ -129,7 +130,7 @@ class Evaluation(nn.Module):
     Used to compute the matching costs for all the hypotheses and choose best solutions.
     """
 
-    def __init__(self, G: int = 8) -> None:
+    def __init__(self, G: int = 8, Attention_Selection='None') -> None:
         """Initialize method`
 
         Args:
@@ -140,7 +141,7 @@ class Evaluation(nn.Module):
         self.G = G
         self.pixel_wise_net = PixelwiseNet(self.G)
         self.softmax = nn.LogSoftmax(dim=1)
-        self.similarity_net = SimilarityNet(self.G)
+        self.similarity_net = SimilarityNet(self.G, Attention_Selection)
 
     def forward(
         self,
@@ -253,6 +254,7 @@ class PatchMatch(nn.Module):
         propagate_neighbors: int = 16,
         evaluate_neighbors: int = 9,
         stage: int = 3,
+        Attention_Selection='None'
     ) -> None:
         """Initialize method
 
@@ -282,7 +284,7 @@ class PatchMatch(nn.Module):
 
         self.depth_initialization = DepthInitialization(patchmatch_num_sample)
         self.propagation = Propagation()
-        self.evaluation = Evaluation(self.G)
+        self.evaluation = Evaluation(self.G, Attention_Selection)
         # adaptive propagation: last iteration on stage 1 does not have propagation,
         # but we still define this for TorchScript export compatibility
         self.propa_conv = nn.Conv2d(
@@ -536,16 +538,22 @@ class SimilarityNet(nn.Module):
     2. Perform adaptive spatial cost aggregation to get final cost (scores)
     """
 
-    def __init__(self, G: int) -> None:
+    def __init__(self, G: int, Attention_Selection='None') -> None:
         """Initialize method
 
         Args:
             G: the feature channels of input will be divided evenly into G groups
         """
         super(SimilarityNet, self).__init__()
+        
 
         self.conv0 = ConvBnReLU3D(in_channels=G, out_channels=16, kernel_size=1, stride=1, pad=0)
-        self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        if Attention_Selection=='None':
+            self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        elif Attention_Selection=='CBAM':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='cbam' )
+        elif Attention_Selection=='Depth':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='axial')
         self.similarity = nn.Conv3d(in_channels=8, out_channels=1, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x1: torch.Tensor, grid: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:

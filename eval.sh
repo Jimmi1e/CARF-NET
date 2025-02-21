@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-CHECKPOINT_FILE="./checkpoints/params_000007.ckpt"
+CHECKPOINT_FILE="./checkpoints/model_000005.ckpt"
 
-# test on DTU's evaluation set
-DTU_TESTING="/home/dtu/"
-python eval.py --scan_list ./lists/dtu/test.txt --input_folder=$DTU_TESTING --output_folder=$DTU_TESTING \
---checkpoint_path $CHECKPOINT_FILE --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.8 "$@"
+
+DTU_TESTING="F:\691Project\dtu"
+python eval.py --scan_list ./lists/dtu/test.txt --input_folder "F:\691Project\dtu" --output_folder "F:\691Project\dtu" --checkpoint_path "./checkpoints/model_000010.ckpt" --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.8 "$@"
 
 # -------------------------------------------------------------------------------------
 # test on eth3d benchmark

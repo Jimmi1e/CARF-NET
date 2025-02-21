@@ -27,7 +27,8 @@ def save_depth(args):
             patchmatch_iteration=args.patchmatch_iteration,
             patchmatch_num_sample=args.patchmatch_num_sample,
             propagate_neighbors=args.propagate_neighbors,
-            evaluate_neighbors=args.evaluate_neighbors
+            evaluate_neighbors=args.evaluate_neighbors,
+            featureNet='RepViTNet',
         )
 
         model = nn.DataParallel(model)

@@ -5,8 +5,9 @@ import torch.nn.functional as F
 from .module import ConvBnReLU, depth_regression
 from .patchmatch import PatchMatch
 from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
-# from .repvit_feature import RepViTNet
+#from .repvit_feature import RepViTNet
 from .repvit_feature11 import RepViTNet
+from .liteFeatureNet import LightFeatureNet,apply_pruning
 class TransformerFeature(nn.Module):
     """Transformer Feature Network: to extract features of transformed images from each view"""
     def __init__(self,img_size=512,window_size=8, mlp_ratio=4., qkv_bias=True,
@@ -130,18 +131,21 @@ class FeatureNet(nn.Module):
         conv7 = self.conv7(self.conv6(self.conv5(conv4)))
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
         
-        print(conv10.size())
+        
         output_feature[3] = self.output1(conv10)
+        # print(output_feature[3].size())
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
-        print(intra_feat.size())
-        output_feature[2] = self.output2(intra_feat)  
+        
+        output_feature[2] = self.output2(intra_feat) 
+        # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
-        print(intra_feat.size())
+        
         output_feature[1] = self.output3(intra_feat)
+        # print(output_feature[1].size())
         del intra_feat
 
         return output_feature
@@ -211,6 +215,7 @@ class PatchmatchNet(nn.Module):
         propagate_neighbors: List[int],
         evaluate_neighbors: List[int],
         featureNet='FeatureNet',
+        Attention_Selection='None',
         image_size=(512,512)
     ) -> None:
         """Initialize modules in PatchmatchNet
@@ -232,6 +237,9 @@ class PatchmatchNet(nn.Module):
             self.feature = TransformerFeature(img_size=image_size)
         elif featureNet=='RepViTNet':
             self.feature = RepViTNet(ckpt_path="checkpoints/repvit_m1_1_distill_450e.pth")# new add Jiaxi
+        elif featureNet=='LightFeatureNet':
+            self.feature=LightFeatureNet()
+            apply_pruning(self.feature, amount=0.3)
         self.patchmatch_num_sample = patchmatch_num_sample
 
         num_features = [16, 32, 64]
@@ -252,6 +260,7 @@ class PatchmatchNet(nn.Module):
                 propagate_neighbors=self.propagate_neighbors[i],
                 evaluate_neighbors=evaluate_neighbors[i],
                 stage=i + 1,
+                Attention_Selection=Attention_Selection
             )
             setattr(self, f"patchmatch_{i+1}", patchmatch)
 

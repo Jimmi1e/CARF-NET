@@ -31,7 +31,7 @@ patchmatch_net = PatchmatchNet(
     patchmatch_num_sample=[8, 8, 16],
     propagate_neighbors=[0, 8, 16],
     evaluate_neighbors=[9, 9, 9],
-    featureNet='RepViTNet'
+    Attention_Selection='CBAM',
 )
 
 
