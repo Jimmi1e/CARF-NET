@@ -112,30 +112,30 @@ class FeatureNet(nn.Module):
         if use_ARF:
             self.output1 = nn.Sequential(
                     ConvBnReLU(64, 64, 1,1,0),
-                    DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
-                    nn.BatchNorm2d(64),
-                    nn.ReLU(inplace=True),
-                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
-                    nn.BatchNorm2d(64),
-                    nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
                     DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1))
             self.output2 = nn.Sequential(
                     ConvBnReLU(64, 64, 3,1,1),
-                    DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
-                    nn.BatchNorm2d(64),
-                    nn.ReLU(inplace=True),
-                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
-                    nn.BatchNorm2d(64),
-                    nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
                     DCN(in_channels=64, out_channels=32, kernel_size=3,stride=1, padding=1))
             self.output3 = nn.Sequential(
                     ConvBnReLU(64, 64, 3,1,1),
-                    DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
-                    nn.BatchNorm2d(64),
-                    nn.ReLU(inplace=True),
-                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
-                    nn.BatchNorm2d(64),
-                    nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
                     DCN(in_channels=64, out_channels=16, kernel_size=3,stride=1, padding=1))
         else:
             self.output1 = nn.Conv2d(64, 64, 1, bias=False)
