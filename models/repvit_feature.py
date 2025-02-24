@@ -105,7 +105,7 @@ class RepViTNet(nn.Module):
         
         output_feature: Dict[int, torch.Tensor] = {}
         shallow_feature = features[5] #shallow 
-        intermediate_feature = features[26]#intermediate
+        intermediate_feature = features[-6]#intermediate
         deep_feature = features[-1]#dedep 
         
         # Stage 3 (Deep):

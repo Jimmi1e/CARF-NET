@@ -18,3 +18,15 @@ models/__pycache__/position_encoding.cpython-312.pyc
 checkpoints/model1_1_000007.ckpt
 checkpoints/model1_5_000005.ckpt
 models/__pycache__/dcn.cpython-312.pyc
+datasets/__pycache__/__init__.cpython-310.pyc
+datasets/__pycache__/data_io.cpython-310.pyc
+datasets/__pycache__/mvs.cpython-310.pyc
+models/__pycache__/__init__.cpython-310.pyc
+models/__pycache__/liteFeatureNet.cpython-310.pyc
+models/__pycache__/module.cpython-310.pyc
+models/__pycache__/net.cpython-310.pyc
+models/__pycache__/patchmatch.cpython-310.pyc
+models/__pycache__/repvit_feature.cpython-310.pyc
+models/__pycache__/repvit_feature11.cpython-310.pyc
+models/__pycache__/repvit.cpython-310.pyc
+models/__pycache__/swin_transformer_v2.cpython-310.pyc

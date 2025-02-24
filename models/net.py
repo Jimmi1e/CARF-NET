@@ -249,7 +249,8 @@ class PatchmatchNet(nn.Module):
         use_FMT=False,
         featureNet='FeatureNet',
         image_size=(512,512),
-        num_features = [16, 32, 64]
+        num_features = [16, 32, 64],
+        Attention_Selection='None',
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -295,6 +296,7 @@ class PatchmatchNet(nn.Module):
                 propagate_neighbors=self.propagate_neighbors[i],
                 evaluate_neighbors=evaluate_neighbors[i],
                 stage=i + 1,
+                Attention_Selection=Attention_Selection
             )
             setattr(self, f"patchmatch_{i+1}", patchmatch)
 

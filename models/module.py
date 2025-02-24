@@ -72,6 +72,115 @@ class ConvBnReLU3D(nn.Module):
         return F.relu(self.bn(self.conv(x)), inplace=True)
 
 
+class DepthAxialAttention3D(nn.Module):
+    """DepthAxialAttention module，enhance z direction feature(depth information)"""
+    def __init__(self, in_channels, reduction_ratio=8):
+        super().__init__()
+        self.channel_attention = nn.Sequential(
+            nn.AdaptiveAvgPool3d(1),
+            nn.Conv3d(in_channels, in_channels//reduction_ratio, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(in_channels//reduction_ratio, in_channels, 1),
+            nn.Sigmoid()
+        )
+        
+        self.depth_conv = nn.Conv3d(
+            in_channels, in_channels, 
+            kernel_size=(3, 1, 1),
+            padding=(1, 0, 0),
+            groups=in_channels
+        )
+        self.spatial_attention = nn.Sequential(
+            nn.Conv3d(in_channels, 1, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        ca = self.channel_attention(x)
+        x_ca = x * ca     
+        z_feat = self.depth_conv(x_ca)
+        
+        sa = self.spatial_attention(z_feat)
+        out = x_ca * sa
+        return out + x  # residual connection
+
+class ConvBNReLU3D_Attention(nn.Module):
+    def __init__(self, in_channels, out_channels, 
+                 kernel_size=3, stride=1, padding=1, dilation: int = 1,
+                 attention_type='axial'):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, 
+                     kernel_size, stride, padding,dilation, bias=False),
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+        if attention_type == 'axial':
+            self.attention = DepthAxialAttention3D(out_channels)
+        elif attention_type == 'cbam':
+            self.attention = CBAM3D(out_channels)
+        else:
+            self.attention = nn.Identity()
+
+    def forward(self, x):
+        x = self.conv(x)
+        return self.attention(x)
+
+class CBAM3D(nn.Module):
+    """
+    3D CBAM module
+    This module computes both channel and spatial attention using 
+    adaptive average & max pooling and 1x1x1 convolutions.
+    
+    Args:
+        in_channels: Number of input channels.
+        reduction_ratio: Reduction ratio for channel attention.
+        spatial_kernel: Kernel size for the spatial attention convolution.
+    """
+    def __init__(self, in_channels, reduction_ratio=8, spatial_kernel=7):
+        super(CBAM3D, self).__init__()
+        # Channel Att
+        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.max_pool = nn.AdaptiveMaxPool3d(1)
+        self.mlp = nn.Sequential(
+            nn.Conv3d(in_channels, in_channels // reduction_ratio, kernel_size=1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(in_channels // reduction_ratio, in_channels, kernel_size=1, bias=False)
+        )
+        self.sigmoid_channel = nn.Sigmoid()
+        #Spatial Att
+        self.conv_spatial = nn.Conv3d(2, 1, kernel_size=spatial_kernel, 
+                                      padding=(spatial_kernel - 1) // 2, bias=False)
+        self.sigmoid_spatial = nn.Sigmoid()
+
+    def forward(self, x):
+        #x:[B, C, D, H, W]
+        #Channel Attention
+        avg_out = self.mlp(self.avg_pool(x))  # [B, C, 1, 1, 1]
+        max_out = self.mlp(self.max_pool(x))  # [B, C, 1, 1, 1]
+        channel_att = self.sigmoid_channel(avg_out + max_out)  # [B, C, 1, 1, 1]
+        x_channel = x * channel_att
+
+        # Spatial Attention
+        avg_out_spatial = torch.mean(x_channel, dim=1, keepdim=True)  # [B,1,D,H,W]
+        max_out_spatial, _ = torch.max(x_channel, dim=1, keepdim=True)  # [B,1,D,H,W]
+        spatial_cat = torch.cat([avg_out_spatial, max_out_spatial], dim=1)  # [B,2,D,H,W]
+        spatial_att = self.sigmoid_spatial(self.conv_spatial(spatial_cat))  # [B,1,D,H,W]
+        out = x_channel * spatial_att
+        return out
+
+# class HybridAttentionNet(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+#         #
+#         self.encoder1 = ConvBNReLU3D_Attention(3, 64, attention_type='axial')
+#         # Deep layre CBAM
+#         self.encoder2 = ConvBNReLU3D_Attention(64, 128, attention_type='cbam')
+#         #Mildde layer dont use any attention module
+#         self.bottleneck = ConvBNReLU3D_Attention(128, 256)
+
+
+
 class ConvBnReLU1D(nn.Module):
     """Implements 1d Convolution + batch normalization + ReLU."""
 
