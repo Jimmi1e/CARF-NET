@@ -119,6 +119,8 @@ class ConvBNReLU3D_Attention(nn.Module):
             self.attention = DepthAxialAttention3D(out_channels)
         elif attention_type == 'cbam':
             self.attention = CBAM3D(out_channels)
+        elif attention_type == 'se':
+            self.attention = scSE3D(out_channels)
         else:
             self.attention = nn.Identity()
 
@@ -169,15 +171,47 @@ class CBAM3D(nn.Module):
         out = x_channel * spatial_att
         return out
 
-# class HybridAttentionNet(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         #
-#         self.encoder1 = ConvBNReLU3D_Attention(3, 64, attention_type='axial')
-#         # Deep layre CBAM
-#         self.encoder2 = ConvBNReLU3D_Attention(64, 128, attention_type='cbam')
-#         #Mildde layer dont use any attention module
-#         self.bottleneck = ConvBNReLU3D_Attention(128, 256)
+
+class sSE3D(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.conv1x1 = nn.Conv3d(in_channels, 1, kernel_size=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, U):
+        # U: [bs, c, d, h, w] -> q: [bs, 1, d, h, w]
+        q = self.conv1x1(U)
+        q = self.sigmoid(q)
+        return U * q
+
+class cSE3D(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        # using 3D adaptive pooling ，squeeze spatial volume to 1×1×1
+        self.avgpool = nn.AdaptiveAvgPool3d(1)
+        self.conv_squeeze = nn.Conv3d(in_channels, in_channels // 2, kernel_size=1, bias=False)
+        self.conv_excitation = nn.Conv3d(in_channels // 2, in_channels, kernel_size=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, U):
+        # [bs, c, d, h, w] to [bs, c, 1, 1, 1]
+        z = self.avgpool(U)
+        z = self.conv_squeeze(z)
+        z = self.conv_excitation(z)
+        z = self.sigmoid(z)
+        return U * z.expand_as(U)
+
+class scSE3D(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.cSE = cSE3D(in_channels)
+        self.sSE = sSE3D(in_channels)
+
+    def forward(self, U):
+        U_cse = self.cSE(U)
+        U_sse = self.sSE(U)
+        return U_cse + U_sse
+
 
 
 

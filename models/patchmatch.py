@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .module import ConvBnReLU3D, differentiable_warping, is_empty, ConvBNReLU3D_Attention,HybridAttentionNet
+from .module import ConvBnReLU3D, differentiable_warping, is_empty, ConvBNReLU3D_Attention
 
 
 
@@ -552,6 +552,8 @@ class SimilarityNet(nn.Module):
             self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
         elif Attention_Selection=='CBAM':
             self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='cbam' )
+        elif Attention_Selection=='SE':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='se' )
         elif Attention_Selection=='Depth':
             self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='axial')
         self.similarity = nn.Conv3d(in_channels=8, out_channels=1, kernel_size=1, stride=1, padding=0)

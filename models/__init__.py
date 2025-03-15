@@ -1,3 +1,3 @@
-from models.net import PatchmatchNet, patchmatchnet_loss,TransformerFeature
+from models.net_ori import PatchmatchNet, patchmatchnet_loss,TransformerFeature
 from models.swin_transformer_v2 import SwinTransformerV2
 from models.repvit_feature import RepViTNet

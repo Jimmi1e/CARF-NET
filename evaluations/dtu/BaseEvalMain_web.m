@@ -5,9 +5,9 @@ clc
 
 % script to calculate distances have been measured for all included scans (UsedSets)
 
-dataPath='/home/SampleSet/MVS Data/';
-plyPath='/home/PatchmatchNet/outputs/';
-resultsPath='/home/PatchmatchNet/outputs/';
+dataPath='F:/691Project/SampleSet/MVS Data/';
+plyPath='F:/691Project/dtu/scan9/';
+resultsPath='F:/691Project/dtu/scan9/';
 
 method_string='patchmatchnet';
 light_string='l3'; % l3 is the setting with all lights on, l7 is randomly sampled between the 7 settings (index 0-6)
@@ -20,7 +20,8 @@ switch representation_string
 end
 
 % get sets used in evaluation
-UsedSets=[1 4 9 10 11 12 13 15 23 24 29 32 33 34 48 49 62 75 77 110 114 118];
+% UsedSets=[1 4 9 10 11 12 13 15 23 24 29 32 33 34 48 49 62 75 77 110 114 118];
+UsedSets=9;
 
 result = zeros(length(UsedSets),4);
 

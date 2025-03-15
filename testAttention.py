@@ -1,40 +1,40 @@
 import torch
-from models.module import CBAM3D, DepthAxialAttention3D
+from models.module import CBAM3D, DepthAxialAttention3D,scSE3D
 
-if __name__ == '__main__':
-    # 构造一个随机输入：例如 B=2, C=32, D=8, H=64, W=64
-    dummy_input = torch.randn(2, 32, 8, 64, 64)
-    cbam = CBAM3D(in_channels=32, reduction_ratio=8, spatial_kernel=7)
+# if __name__ == '__main__':
+#     # 构造一个随机输入：例如 B=2, C=32, D=8, H=64, W=64
+#     dummy_input = torch.randn(2, 32, 8, 64, 64)
+#     cbam = CBAM3D(in_channels=32, reduction_ratio=8, spatial_kernel=7)
     
-    # 前向传播，得到输出
-    output = cbam(dummy_input)
+#     # 前向传播，得到输出
+#     output = cbam(dummy_input)
     
-    # 验证输出形状与输入一致
-    print("Input shape: ", dummy_input.shape)
-    print("Output shape:", output.shape)
+#     # 验证输出形状与输入一致
+#     print("Input shape: ", dummy_input.shape)
+#     print("Output shape:", output.shape)
     
-    # 验证注意力机制的数值范围
-    with torch.no_grad():
-        # 获取通道注意力
-        avg_out = cbam.mlp(cbam.avg_pool(dummy_input))
-        max_out = cbam.mlp(cbam.max_pool(dummy_input))
-        channel_att = cbam.sigmoid_channel(avg_out + max_out)
-        print("Channel attention min/max:", channel_att.min().item(), channel_att.max().item())
+#     # 验证注意力机制的数值范围
+#     with torch.no_grad():
+#         # 获取通道注意力
+#         avg_out = cbam.mlp(cbam.avg_pool(dummy_input))
+#         max_out = cbam.mlp(cbam.max_pool(dummy_input))
+#         channel_att = cbam.sigmoid_channel(avg_out + max_out)
+#         print("Channel attention min/max:", channel_att.min().item(), channel_att.max().item())
         
-        # 计算空间注意力
-        x_channel = dummy_input * channel_att
-        avg_out_spatial = torch.mean(x_channel, dim=1, keepdim=True)
-        max_out_spatial, _ = torch.max(x_channel, dim=1, keepdim=True)
-        spatial_cat = torch.cat([avg_out_spatial, max_out_spatial], dim=1)
-        spatial_att = cbam.sigmoid_spatial(cbam.conv_spatial(spatial_cat))
-        print("Spatial attention min/max:", spatial_att.min().item(), spatial_att.max().item())
+#         # 计算空间注意力
+#         x_channel = dummy_input * channel_att
+#         avg_out_spatial = torch.mean(x_channel, dim=1, keepdim=True)
+#         max_out_spatial, _ = torch.max(x_channel, dim=1, keepdim=True)
+#         spatial_cat = torch.cat([avg_out_spatial, max_out_spatial], dim=1)
+#         spatial_att = cbam.sigmoid_spatial(cbam.conv_spatial(spatial_cat))
+#         print("Spatial attention min/max:", spatial_att.min().item(), spatial_att.max().item())
     
-    # 检查梯度是否能够正常反向传播
-    dummy_input.requires_grad = True
-    output = cbam(dummy_input)
-    loss = output.sum()
-    loss.backward()
-    print("Gradient check passed: ", dummy_input.grad is not None)
+#     # 检查梯度是否能够正常反向传播
+#     dummy_input.requires_grad = True
+#     output = cbam(dummy_input)
+#     loss = output.sum()
+#     loss.backward()
+#     print("Gradient check passed: ", dummy_input.grad is not None)
 
 # if __name__ == '__main__':
 #     # 构造一个随机输入，假设输入尺寸为 [B, C, D, H, W]
@@ -63,3 +63,37 @@ if __name__ == '__main__':
 #     loss = out.sum()
 #     loss.backward()
 #     print("Gradient check passed:", dummy.grad is not None)
+if __name__ == '__main__':
+    # 构造一个随机输入：例如 Batch=2, Channels=32, Depth=8, Height=64, Width=64
+    dummy_input = torch.randn(2, 32, 8, 64, 64)
+    
+    # 初始化 scSE 模块
+    scse_module = scSE3D(in_channels=32)
+    
+    # 前向传播，获取输出
+    output = scse_module(dummy_input)
+    
+    # 打印输入和输出的尺寸
+    print("Input shape:", dummy_input.shape)
+    print("Output shape:", output.shape)
+    
+    # 检查通道注意力部分的数值范围（打印最小、最大值）
+    with torch.no_grad():
+        z = scse_module.cSE.avgpool(dummy_input)
+        z = scse_module.cSE.conv_squeeze(z)
+        z = scse_module.cSE.conv_excitation(z)
+        # 自动选择属性： norm 或 sigmoid
+        if hasattr(scse_module.cSE, 'norm'):
+            channel_attention = scse_module.cSE.norm(z)
+        elif hasattr(scse_module.cSE, 'sigmoid'):
+            channel_attention = scse_module.cSE.sigmoid(z)
+        else:
+            raise AttributeError("cSE3D 中未定义激活函数属性。")
+        print("Channel attention min/max:", channel_attention.min().item(), channel_attention.max().item())
+    
+    # 检查梯度是否能够正常反向传播
+    dummy_input.requires_grad = True
+    output = scse_module(dummy_input)
+    loss = output.sum()
+    loss.backward()
+    print("Gradient check passed:", dummy_input.grad is not None)

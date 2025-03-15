@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 
 from datasets.data_io import read_cam_file, read_image, read_map, read_pair_file, save_image, save_map
 from datasets.mvs import MVSDataset
-from models.net import PatchmatchNet
+from models.net_ori import PatchmatchNet
 from utils import print_args, tensor2numpy, to_cuda
 
 
@@ -28,7 +28,8 @@ def save_depth(args):
             patchmatch_num_sample=args.patchmatch_num_sample,
             propagate_neighbors=args.propagate_neighbors,
             evaluate_neighbors=args.evaluate_neighbors,
-            featureNet='RepViTNet',
+            # featureNet='RepViTNet',
+            Attention_Selection='CBAM'
         )
 
         model = nn.DataParallel(model)

@@ -75,7 +75,6 @@ set DTU_TRAINING = "/nfs/speed-scratch/ya_jiaxi/dtuTrainingData/dtu/"
 
 echo "Running Training processing..."
 echo "================================================"
-python train_dtu.py --batch_size 2 --epochs 8 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt $argv
-
+python train_dtu.py --batch_size 6 --epochs 15 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt --logdir ./checkpoints --parallel
 conda deactivate
 exit

@@ -1,6 +1,6 @@
 
 from models import PatchmatchNet, patchmatchnet_loss,TransformerFeature,SwinTransformerV2
-from models.net import FeatureNet
+from models.net_ori import FeatureNet
 from models.repvit_feature import RepViTNet
 from torchsummary import summary
 import torch

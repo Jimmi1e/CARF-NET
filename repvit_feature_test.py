@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.net import FeatureNet
+from models.net_ori import FeatureNet
 # from models.repvit_feature import RepViTNet
 #from models.repvit_feature11 import RepViTNet
 from models.liteFeatureNet import LightFeatureNet

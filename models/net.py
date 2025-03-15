@@ -84,71 +84,48 @@ class TransformerFeature(nn.Module):
         # print(output_feature[1].size())
         return output_feature
 class FeatureNet(nn.Module):
-    """Feature Extraction Network: to extract features of original images from each view"""
-
+    """Feature Extraction Network"""
     def __init__(self):
-        """Initialize different layers in the network"""
-
         super(FeatureNet, self).__init__()
 
         self.conv0 = ConvBnReLU(3, 8, 3, 1, 1)
-        # [B,8,H,W]
         self.conv1 = ConvBnReLU(8, 8, 3, 1, 1)
-        # [B,16,H/2,W/2]
         self.conv2 = ConvBnReLU(8, 16, 5, 2, 2)
         self.conv3 = ConvBnReLU(16, 16, 3, 1, 1)
         self.conv4 = ConvBnReLU(16, 16, 3, 1, 1)
-        # [B,32,H/4,W/4]
         self.conv5 = ConvBnReLU(16, 32, 5, 2, 2)
         self.conv6 = ConvBnReLU(32, 32, 3, 1, 1)
         self.conv7 = ConvBnReLU(32, 32, 3, 1, 1)
-        # [B,64,H/8,W/8]
         self.conv8 = ConvBnReLU(32, 64, 5, 2, 2)
         self.conv9 = ConvBnReLU(64, 64, 3, 1, 1)
         self.conv10 = ConvBnReLU(64, 64, 3, 1, 1)
-
+        #Low res：H/8
         self.output1 = nn.Conv2d(64, 64, 1, bias=False)
+        #Mid res（stage2） no output here
         self.inner1 = nn.Conv2d(32, 64, 1, bias=True)
+        #High res：H/2
         self.inner2 = nn.Conv2d(16, 64, 1, bias=True)
-        self.output2 = nn.Conv2d(64, 32, 1, bias=False)
         self.output3 = nn.Conv2d(64, 16, 1, bias=False)
 
     def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
-        """Forward method
-
-        Args:
-            x: images from a single view, in the shape of [B, C, H, W]. Generally, C=3
-
-        Returns:
-            output_feature: a python dictionary contains extracted features from stage 1 to stage 3
-                keys are 1, 2, and 3
         """
-        output_feature: Dict[int, torch.Tensor] = {}
-        
+        Args:
+            x: Inptu image [B, 3, H, W]
+        Returns:
+              key 3: Low Resolution Feature Maps (H/8)
+              key 1: High Resolution Feature Maps (H/2)
+        """
         conv1 = self.conv1(self.conv0(x))
         conv4 = self.conv4(self.conv3(self.conv2(conv1)))
-
         conv7 = self.conv7(self.conv6(self.conv5(conv4)))
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
-        
-        
-        output_feature[3] = self.output1(conv10)
-        # print(output_feature[3].size())
+            
+        out_low = self.output1(conv10)# For stage3
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
-        del conv7
-        del conv10
+        intra_feat = F.interpolate(intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
+        out_high = self.output3(intra_feat)#For stage 1
         
-        output_feature[2] = self.output2(intra_feat) 
-        # print(output_feature[2].size()) 
-        intra_feat = F.interpolate(
-            intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
-        del conv4
-        
-        output_feature[1] = self.output3(intra_feat)
-        # print(output_feature[1].size())
-        del intra_feat
-
-        return output_feature
+        return {3: out_low, 1: out_high}
 
 
 class Refinement(nn.Module):
@@ -204,7 +181,7 @@ class Refinement(nn.Module):
 
 
 class PatchmatchNet(nn.Module):
-    """ Implementation of complete structure of PatchmatchNet"""
+    """Lightweighted PatchmatchNet: only use patchmatch module in stage3 and stage1"""
 
     def __init__(
         self,
@@ -218,27 +195,17 @@ class PatchmatchNet(nn.Module):
         Attention_Selection='None',
         image_size=(512,512)
     ) -> None:
-        """Initialize modules in PatchmatchNet
 
-        Args:
-            patchmatch_interval_scale: depth interval scale in patchmatch module
-            propagation_range: propagation range
-            patchmatch_iteration: patchmatch iteration number
-            patchmatch_num_sample: patchmatch number of samples
-            propagate_neighbors: number of propagation neighbors
-            evaluate_neighbors: number of propagation neighbors for evaluation
-        """
         super(PatchmatchNet, self).__init__()
 
-        self.stages = 4
         if featureNet == 'FeatureNet':
             self.feature = FeatureNet()
         elif featureNet == 'TransformerFeature':
             self.feature = TransformerFeature(img_size=image_size)
         elif featureNet=='RepViTNet':
-            self.feature = RepViTNet(ckpt_path="checkpoints/repvit_m1_1_distill_450e.pth")# new add Jiaxi
+            self.feature = RepViTNet(ckpt_path="checkpoints/repvit_m1_1_distill_450e.pth")
         elif featureNet=='LightFeatureNet':
-            self.feature=LightFeatureNet()
+            self.feature = LightFeatureNet()
             apply_pruning(self.feature, amount=0.3)
         self.patchmatch_num_sample = patchmatch_num_sample
 
@@ -246,23 +213,33 @@ class PatchmatchNet(nn.Module):
 
         self.propagate_neighbors = propagate_neighbors
         self.evaluate_neighbors = evaluate_neighbors
-        # number of groups for group-wise correlation
         self.G = [4, 8, 8]
 
-        for i in range(self.stages - 1):
-            patchmatch = PatchMatch(
-                propagation_out_range=propagation_range[i],
-                patchmatch_iteration=patchmatch_iteration[i],
-                patchmatch_num_sample=patchmatch_num_sample[i],
-                patchmatch_interval_scale=patchmatch_interval_scale[i],
-                num_feature=num_features[i],
-                G=self.G[i],
-                propagate_neighbors=self.propagate_neighbors[i],
-                evaluate_neighbors=evaluate_neighbors[i],
-                stage=i + 1,
-                Attention_Selection=Attention_Selection
-            )
-            setattr(self, f"patchmatch_{i+1}", patchmatch)
+        self.patchmatch_1 = PatchMatch(
+            propagation_out_range=propagation_range[0],
+            patchmatch_iteration=patchmatch_iteration[0],
+            patchmatch_num_sample=patchmatch_num_sample[0],
+            patchmatch_interval_scale=patchmatch_interval_scale[0],
+            num_feature=num_features[0],
+            G=self.G[0],
+            propagate_neighbors=self.propagate_neighbors[0],
+            evaluate_neighbors=evaluate_neighbors[0],
+            stage=1,
+            Attention_Selection=Attention_Selection
+        )
+
+        self.patchmatch_3 = PatchMatch(
+            propagation_out_range=propagation_range[2],
+            patchmatch_iteration=patchmatch_iteration[2],
+            patchmatch_num_sample=patchmatch_num_sample[2],
+            patchmatch_interval_scale=patchmatch_interval_scale[2],
+            num_feature=num_features[2],
+            G=self.G[2],
+            propagate_neighbors=self.propagate_neighbors[2],
+            evaluate_neighbors=evaluate_neighbors[2],
+            stage=3,
+            Attention_Selection=Attention_Selection
+        )
 
         self.upsample_net = Refinement()
 
@@ -274,25 +251,11 @@ class PatchmatchNet(nn.Module):
         depth_min: torch.Tensor,
         depth_max: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, Dict[int, List[torch.Tensor]]]:
-        """Forward method for PatchMatchNet
-
-        Args:
-            images: N images (B, 3, H, W) stored in list
-            intrinsics: intrinsic 3x3 matrices for all images (B, N, 3, 3)
-            extrinsics: extrinsic 4x4 matrices for all images (B, N, 4, 4)
-            depth_min: minimum virtual depth (B, 1)
-            depth_max: maximum virtual depth (B, 1)
-
-        Returns:
-            output tuple of PatchMatchNet, containing refined depthmap, depth patchmatch, and photometric confidence.
-        """
         assert len(images) == intrinsics.size()[1], "Different number of images and intrinsic matrices"
         assert len(images) == extrinsics.size()[1], 'Different number of images and extrinsic matrices'
         images, intrinsics, orig_height, orig_width = adjust_image_dims(images, intrinsics)
         ref_image = images[0]
         _, _, ref_height, ref_width = ref_image.size()
-
-        # step 1. Multi-scale feature extraction
         features: List[Dict[int, torch.Tensor]] = []
         for img in images:
             output_feature = self.feature(img)
@@ -302,75 +265,67 @@ class PatchmatchNet(nn.Module):
 
         depth_min = depth_min.float()
         depth_max = depth_max.float()
-
-        # step 2. Learning-based patchmatch
         device = intrinsics.device
-        depth = torch.empty(0, device=device)
-        depths: List[torch.Tensor] = []
-        score = torch.empty(0, device=device)
-        view_weights = torch.empty(0, device=device)
+
         depth_patchmatch: Dict[int, List[torch.Tensor]] = {}
 
         scale = 0.125
-        for stage in range(self.stages - 1, 0, -1):
-            src_features_l = [src_fea[stage] for src_fea in src_features]
+        src_features_l = [src_fea[3] for src_fea in src_features]
+        intrinsics_l = intrinsics.clone()
+        intrinsics_l[:, :, :2] *= scale
+        proj = extrinsics.clone()
+        proj[:, :, :3, :4] = torch.matmul(intrinsics_l, extrinsics[:, :, :3, :4])
+        proj_l = torch.unbind(proj, 1)
+        ref_proj, src_proj = proj_l[0], proj_l[1:]
+        
+        depth = torch.empty(0, device=device)
+        view_weights = torch.empty(0, device=device)
+        depths, score, view_weights = self.patchmatch_3(
+            ref_feature=ref_feature[3],
+            src_features=src_features_l,
+            ref_proj=ref_proj,
+            src_projs=src_proj,
+            depth_min=depth_min,
+            depth_max=depth_max,
+            depth=depth,
+            view_weights=view_weights,
+        )
+        depth_patchmatch[3] = depths
+        # obtain stage3 depth
+        depth = depths[-1].detach()
+        
+        # Up sample：（H/8）to （H/2），scale= 4
+        depth = F.interpolate(depth, scale_factor=4.0, mode="nearest")
+        view_weights = F.interpolate(view_weights, scale_factor=4.0, mode="nearest")
 
-            # Create projection matrix for specific stage
-            intrinsics_l = intrinsics.clone()
-            intrinsics_l[:, :, :2] *= scale
-            proj = extrinsics.clone()
-            proj[:, :, :3, :4] = torch.matmul(intrinsics_l, extrinsics[:, :, :3, :4])
-            proj_l = torch.unbind(proj, 1)
-            ref_proj, src_proj = proj_l[0], proj_l[1:]
-            scale *= 2.0
-
-            # Need conditional since TorchScript only allows "getattr" access with string literals
-            if stage == 3:
-                depths, score, view_weights = self.patchmatch_3(
-                    ref_feature=ref_feature[stage],
-                    src_features=src_features_l,
-                    ref_proj=ref_proj,
-                    src_projs=src_proj,
-                    depth_min=depth_min,
-                    depth_max=depth_max,
-                    depth=depth,
-                    view_weights=view_weights,
-                )
-            elif stage == 2:
-                depths, score, view_weights = self.patchmatch_2(
-                    ref_feature=ref_feature[stage],
-                    src_features=src_features_l,
-                    ref_proj=ref_proj,
-                    src_projs=src_proj,
-                    depth_min=depth_min,
-                    depth_max=depth_max,
-                    depth=depth,
-                    view_weights=view_weights,
-                )
-            elif stage == 1:
-                depths, score, view_weights = self.patchmatch_1(
-                    ref_feature=ref_feature[stage],
-                    src_features=src_features_l,
-                    ref_proj=ref_proj,
-                    src_projs=src_proj,
-                    depth_min=depth_min,
-                    depth_max=depth_max,
-                    depth=depth,
-                    view_weights=view_weights,
-                )
-
-            depth_patchmatch[stage] = depths
-            depth = depths[-1].detach()
-
-            if stage > 1:
-                # upsampling the depth map and pixel-wise view weight for next stage
-                depth = F.interpolate(depth, scale_factor=2.0, mode="nearest")
-                view_weights = F.interpolate(view_weights, scale_factor=2.0, mode="nearest")
+        #Patchmatch - High res stage1
+        # stage1 Feat Resolution is H/2，correspanding scale = 0.5
+        scale = 0.5
+        src_features_l = [src_fea[1] for src_fea in src_features]
+        intrinsics_l = intrinsics.clone()
+        intrinsics_l[:, :, :2] *= scale
+        proj = extrinsics.clone()
+        proj[:, :, :3, :4] = torch.matmul(intrinsics_l, extrinsics[:, :, :3, :4])
+        proj_l = torch.unbind(proj, 1)
+        ref_proj, src_proj = proj_l[0], proj_l[1:]
+        
+        depths, score, view_weights = self.patchmatch_1(
+            ref_feature=ref_feature[1],
+            src_features=src_features_l,
+            ref_proj=ref_proj,
+            src_projs=src_proj,
+            depth_min=depth_min,
+            depth_max=depth_max,
+            depth=depth,
+            view_weights=view_weights,
+        )
+        depth_patchmatch[1] = depths
+        depth = depths[-1].detach()
 
         del ref_feature
         del src_features
 
-        # step 3. Refinement
+        # Step 4. Refinement
         depth = self.upsample_net(ref_image, depth, depth_min, depth_max)
         if ref_width != orig_width or ref_height != orig_height:
             depth = F.interpolate(depth, size=[orig_height, orig_width], mode='bilinear', align_corners=False)
@@ -383,15 +338,14 @@ class PatchmatchNet(nn.Module):
             score_sum4 = 4 * F.avg_pool3d(
                 F.pad(score.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1), stride=1, padding=0
             ).squeeze(1)
-            # [B, 1, H, W]
             depth_index = depth_regression(
                 score, depth_values=torch.arange(num_depth, device=score.device, dtype=torch.float)
             ).long().clamp(0, num_depth - 1)
             photometric_confidence = torch.gather(score_sum4, 1, depth_index)
             photometric_confidence = F.interpolate(
                 photometric_confidence, size=[orig_height, orig_width], mode="nearest").squeeze(1)
-
             return depth, photometric_confidence, depth_patchmatch
+
 
 
 def adjust_image_dims(
