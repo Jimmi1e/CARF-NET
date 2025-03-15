@@ -72,7 +72,7 @@ echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 nvidia-smi
 sleep 30
 
-set DTU_TRAINING = "/nfs/speed-scratch/ya_jiaxi/dtuTrainingData/dtu/"
+set DTU_TRAINING = "/nfs/speed-scratch/$USER/dtuTrainingData/dtu/"
 
 # Training on DTU's data set
 
