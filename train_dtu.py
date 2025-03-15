@@ -103,7 +103,13 @@ model = PatchmatchNet(
 if args.parallel and args.mode in ["train", "val"]:
     model = nn.DataParallel(model)
 model.cuda()
-model_loss = patchmatchnet_loss
+
+
+# model_loss = patchmatchnet_loss
+model_loss=depth_normal_loss
+
+
+
 optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=args.wd)
 
 

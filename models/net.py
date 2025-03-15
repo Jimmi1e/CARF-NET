@@ -472,3 +472,108 @@ def patchmatchnet_loss(
             loss = loss + F.smooth_l1_loss(depth[mask[i].bool()], gt_depth, reduction="mean")
 
     return loss
+def computer_normal(depth):
+    sobel_x = torch.tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]], dtype=torch.float32, device=depth.device).unsqueeze(0).unsqueeze(0)
+    sobel_y = torch.tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=torch.float32, device=depth.device).unsqueeze(0).unsqueeze(0)
+
+    dzdx = F.conv2d(depth.unsqueeze(1), sobel_x, padding=1).squeeze(1)  # X 方向梯度
+    dzdy = F.conv2d(depth.unsqueeze(1), sobel_y, padding=1).squeeze(1)  # Y 方向梯度
+
+    normals = torch.stack([-dzdx, -dzdy, torch.ones_like(depth)], dim=1)
+    normals = F.normalize(normals, dim=1)  # 归一化
+    return normals
+def depth_normal_loss(
+    depth_patchmatch: Dict[int, List[torch.Tensor]],
+    depth_gt: List[torch.Tensor],
+    mask: List[torch.Tensor],
+) -> torch.Tensor:
+    """Patchmatch Net loss function
+
+    Args:
+        depth_patchmatch: depth map predicted by patchmatch net
+        depth_gt: ground truth depth map
+        mask: mask for filter valid points
+
+    Returns:
+        loss: result loss value
+    """
+    loss = 0
+    for i in range(0, 4):
+        gt_depth = depth_gt[i][mask[i].bool()]
+        gt_normal = computer_normal(gt_depth)
+        for depth in depth_patchmatch[i]:
+            predit_depth=depth[mask[i].bool()]
+            predit_normal = computer_normal(predit_depth)
+            normal_loss = 1 - torch.mean(torch.sum(predit_normal * gt_normal, dim=1))
+            loss = loss + F.smooth_l1_loss(predit_depth, gt_depth, reduction="mean")+normal_loss
+
+    return loss
+def entropy_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=False):
+    # from AA
+    mask_true = mask
+    valid_pixel_num = torch.sum(mask_true, dim=[1,2]) + 1e-6
+
+    shape = depth_gt.shape          # B,H,W
+
+    depth_num = depth_value.shape[1]
+    if len(depth_value.shape) < 3:
+        depth_value_mat = depth_value.repeat(shape[1], shape[2], 1, 1).permute(2,3,0,1)     # B,N,H,W
+    else:
+        depth_value_mat = depth_value
+
+    gt_index_image = torch.argmin(torch.abs(depth_value_mat-depth_gt.unsqueeze(1)), dim=1)
+
+    gt_index_image = torch.mul(mask_true, gt_index_image.type(torch.float))
+    gt_index_image = torch.round(gt_index_image).type(torch.long).unsqueeze(1) # B, 1, H, W
+
+    # gt index map -> gt one hot volume (B x 1 x H x W )
+    gt_index_volume = torch.zeros(shape[0], depth_num, shape[1], shape[2]).type(mask_true.type()).scatter_(1, gt_index_image, 1)
+
+    # cross entropy image (B x D X H x W)
+    cross_entropy_image = -torch.sum(gt_index_volume * torch.log(prob_volume + 1e-6), dim=1).squeeze(1) # B, 1, H, W
+
+    # masked cross entropy loss
+    masked_cross_entropy_image = torch.mul(mask_true, cross_entropy_image) # valid pixel
+    masked_cross_entropy = torch.sum(masked_cross_entropy_image, dim=[1, 2])
+
+    masked_cross_entropy = torch.mean(masked_cross_entropy / valid_pixel_num) # Origin use sum : aggregate with batch
+    # winner-take-all depth map
+    wta_index_map = torch.argmax(prob_volume, dim=1, keepdim=True).type(torch.long)
+    wta_depth_map = torch.gather(depth_value_mat, 1, wta_index_map).squeeze(1)
+
+    if return_prob_map:
+        photometric_confidence = torch.max(prob_volume, dim=1)[0] # output shape dimension B * H * W
+        return masked_cross_entropy, wta_depth_map, photometric_confidence
+    return masked_cross_entropy, wta_depth_map
+def focal_loss_bld(inputs, depth_gt_ms, mask_ms, depth_interval, **kwargs):
+    depth_loss_weights = kwargs.get("dlossw", None)
+    total_loss = torch.tensor(0.0, dtype=torch.float32, device=mask_ms["stage1"].device, requires_grad=False)
+    total_entropy = torch.tensor(0.0, dtype=torch.float32, device=mask_ms["stage1"].device, requires_grad=False)
+
+    for (stage_inputs, stage_key) in [(inputs[k], k) for k in inputs.keys() if "stage" in k]:
+        prob_volume = stage_inputs["prob_volume"]
+        depth_values = stage_inputs["depth_values"]
+        depth_gt = depth_gt_ms[stage_key]
+        mask = mask_ms[stage_key]
+        mask = mask > 0.5
+        entropy_weight = 2.0
+        entro_loss, depth_entropy = entropy_loss(prob_volume, depth_gt, mask, depth_values)
+        entro_loss = entro_loss * entropy_weight
+        depth_loss = F.smooth_l1_loss(depth_entropy[mask], depth_gt[mask], reduction='mean')
+        total_entropy += entro_loss
+
+        if depth_loss_weights is not None:
+            stage_idx = int(stage_key.replace("stage", "")) - 1
+            total_loss += depth_loss_weights[stage_idx] * entro_loss
+        else:
+            total_loss += entro_loss
+
+    abs_err = (depth_gt_ms['stage3'] - inputs["stage3"]["depth"]).abs()
+    abs_err_scaled = abs_err /(depth_interval *192./128.)
+    mask = mask_ms["stage3"]
+    mask = mask > 0.5
+    epe = abs_err_scaled[mask].mean()
+    less1 = (abs_err_scaled[mask] < 1.).to(depth_gt_ms['stage3'].dtype).mean()
+    less3 = (abs_err_scaled[mask] < 3.).to(depth_gt_ms['stage3'].dtype).mean()
+
+    return total_loss, depth_loss, epe, less1, less3
