@@ -69,14 +69,14 @@ conda list
 
 sleep 30
 
-CHECKPOINT_FILE="./checkpoints/params_000007.ckpt"
+set CHECKPOINT_FILE = "./checkpoints/debug_ARF_CBAM_new_loss/model_000005.ckpt"
 
 # test on DTU's evaluation set
-DTU_TESTING="/home/dtu/"
+set DTU_TESTING = "/speed-scratch/$USER/dtu/"
 echo "Running eval processing..."
 echo "================================================"
-srun python eval.py --scan_list ./lists/dtu/test.txt --input_folder=$DTU_TESTING --output_folder=$DTU_TESTING \
---checkpoint_path $CHECKPOINT_FILE --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.8 "$@"
+python eval.py --scan_list ./lists/dtu/test.txt --input_folder=$DTU_TESTING --output_folder=$DTU_TESTING \
+--checkpoint_path $CHECKPOINT_FILE --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.7
 # srun python yolo_video.py --input video/v1.avi --output video/001.avi #--gpu_num 1
 
 conda deactivate
