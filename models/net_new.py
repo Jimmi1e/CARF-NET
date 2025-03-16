@@ -261,6 +261,7 @@ class PatchmatchNet(nn.Module):
                 propagate_neighbors=self.propagate_neighbors[i],
                 evaluate_neighbors=evaluate_neighbors[i],
                 stage=i + 1,
+                Attention_Selection_FWN=Attention_Selection_FWN,
                 Attention_Selection=Attention_Selection
             )
             setattr(self, f"patchmatch_{i+1}", patchmatch)
