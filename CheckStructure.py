@@ -17,7 +17,8 @@ if __name__ == '__main__':
         propagate_neighbors=[0, 8, 16],
         evaluate_neighbors=[9, 9, 9],
         use_ARF=True,
-        Attention_Selection='CBAM'
+        Attention_Selection_FWN='CBAM'
+        # Attention_Selection='CBAM'
         # featureNet='RepViTNet09',
         # image_size=(512,640)
         # num_features = [32, 96, 192]

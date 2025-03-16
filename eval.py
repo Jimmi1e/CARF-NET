@@ -28,7 +28,9 @@ def save_depth(args):
             patchmatch_num_sample=args.patchmatch_num_sample,
             propagate_neighbors=args.propagate_neighbors,
             evaluate_neighbors=args.evaluate_neighbors,
-            featureNet='RepViTNet',
+            # featureNet='RepViTNet',
+            use_ARF=True,
+            Attention_Selection_FWN='CBAM', 
         )
 
         model = nn.DataParallel(model)

@@ -254,6 +254,7 @@ class PatchMatch(nn.Module):
         propagate_neighbors: int = 16,
         evaluate_neighbors: int = 9,
         stage: int = 3,
+        Attention_Selection_FWN='None',
         Attention_Selection='None'
     ) -> None:
         """Initialize method
@@ -311,7 +312,7 @@ class PatchMatch(nn.Module):
         )
         nn.init.constant_(self.eval_conv.weight, 0.0)
         nn.init.constant_(self.eval_conv.bias, 0.0)
-        self.feature_weight_net = FeatureWeightNet(self.evaluate_neighbors, self.G)
+        self.feature_weight_net = FeatureWeightNet(self.evaluate_neighbors, self.G,Attention_Selection_FWN)
 
     def get_grid(
         self, grid_type: int, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device
@@ -591,7 +592,7 @@ class FeatureWeightNet(nn.Module):
     cost aggregation.
     """
 
-    def __init__(self, neighbors: int = 9, G: int = 8) -> None:
+    def __init__(self, neighbors: int = 9, G: int = 8, Attention_Selection_FWN='None',) -> None:
         """Initialize method
 
         Args:
@@ -603,7 +604,15 @@ class FeatureWeightNet(nn.Module):
         self.G = G
 
         self.conv0 = ConvBnReLU3D(in_channels=G, out_channels=16, kernel_size=1, stride=1, pad=0)
-        self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        # self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        if Attention_Selection_FWN=='None':
+            self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        elif Attention_Selection_FWN=='CBAM':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='cbam' )
+        elif Attention_Selection_FWN=='SE':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='se' )
+        elif Attention_Selection_FWN=='Depth':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='axial')
         self.similarity = nn.Conv3d(in_channels=8, out_channels=1, kernel_size=1, stride=1, padding=0)
 
         self.output = nn.Sigmoid()

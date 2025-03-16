@@ -251,6 +251,7 @@ class PatchmatchNet(nn.Module):
         image_size=(512,512),
         num_features = [16, 32, 64],
         Attention_Selection='None',
+        Attention_Selection_FWN='None',
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -296,7 +297,8 @@ class PatchmatchNet(nn.Module):
                 propagate_neighbors=self.propagate_neighbors[i],
                 evaluate_neighbors=evaluate_neighbors[i],
                 stage=i + 1,
-                Attention_Selection=Attention_Selection
+                Attention_Selection=Attention_Selection,
+                Attention_Selection_FWN=Attention_Selection_FWN,
             )
             setattr(self, f"patchmatch_{i+1}", patchmatch)
 
@@ -475,12 +477,11 @@ def patchmatchnet_loss(
 def computer_normal(depth):
     sobel_x = torch.tensor([[1, 0, -1], [2, 0, -2], [1, 0, -1]], dtype=torch.float32, device=depth.device).unsqueeze(0).unsqueeze(0)
     sobel_y = torch.tensor([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=torch.float32, device=depth.device).unsqueeze(0).unsqueeze(0)
-
-    dzdx = F.conv2d(depth.unsqueeze(1), sobel_x, padding=1).squeeze(1)  # X 方向梯度
-    dzdy = F.conv2d(depth.unsqueeze(1), sobel_y, padding=1).squeeze(1)  # Y 方向梯度
-
-    normals = torch.stack([-dzdx, -dzdy, torch.ones_like(depth)], dim=1)
-    normals = F.normalize(normals, dim=1)  # 归一化
+    
+    dzdx = F.conv2d(depth, sobel_x, padding=1)  # X 方向梯度
+    dzdy = F.conv2d(depth, sobel_y, padding=1)  # Y 方向梯度
+    normals = torch.cat([-dzdx, -dzdy, torch.ones_like(depth)], dim=1)
+    normals = F.normalize(normals,p=2, dim=1)  # 归一化
     return normals
 def depth_normal_loss(
     depth_patchmatch: Dict[int, List[torch.Tensor]],
@@ -499,13 +500,16 @@ def depth_normal_loss(
     """
     loss = 0
     for i in range(0, 4):
+        #print(depth_gt[i].shape)
         gt_depth = depth_gt[i][mask[i].bool()]
-        gt_normal = computer_normal(gt_depth)
+        gt_normal = computer_normal(depth_gt[i])
         for depth in depth_patchmatch[i]:
             predit_depth=depth[mask[i].bool()]
-            predit_normal = computer_normal(predit_depth)
+            predit_normal = computer_normal(depth)
             normal_loss = 1 - torch.mean(torch.sum(predit_normal * gt_normal, dim=1))
-            loss = loss + F.smooth_l1_loss(predit_depth, gt_depth, reduction="mean")+normal_loss
+            depth_loss=F.smooth_l1_loss(predit_depth, gt_depth, reduction="mean")
+            #print('normal',normal_loss,'Depth',depth_loss)
+            loss = loss +depth_loss +normal_loss*20
 
     return loss
 def entropy_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=False):
