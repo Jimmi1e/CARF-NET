@@ -29,7 +29,8 @@ def save_depth(args):
             propagate_neighbors=args.propagate_neighbors,
             evaluate_neighbors=args.evaluate_neighbors,
             # featureNet='RepViTNet',
-            Attention_Selection='CBAM'
+            # Attention_Selection='CBAM'
+            Attention_Selection_FWN='CBAM'
         )
 
         model = nn.DataParallel(model)

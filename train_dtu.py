@@ -96,7 +96,8 @@ model = PatchmatchNet(
     propagate_neighbors=args.propagate_neighbors,
     evaluate_neighbors=args.evaluate_neighbors,
     # featureNet='none',
-    Attention_Selection='CBAM'
+    Attention_Selection_FWN='CBAM'
+    # Attention_Selection='CBAM'
     # image_size=(512,640)
 )
 if args.parallel and args.mode in ["train", "val"]:
