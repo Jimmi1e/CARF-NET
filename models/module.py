@@ -7,7 +7,24 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class ResidualBlock(nn.Module):
+    def __init__(self, in_planes, planes, stride=1):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = ConvBnReLU(in_planes, planes, 3, stride=stride, pad=1)
+        self.conv2 = ConvBn(planes, planes, 3, stride=1, pad=1)
 
+        self.relu = nn.ReLU(inplace=True)
+
+        if stride == 1:
+            self.downsample = None
+        else:    
+            self.downsample = ConvBn(in_planes, planes, 3, stride=stride, pad=1)
+
+    def forward(self, x):
+        y = self.conv2(self.conv1(x))
+        if self.downsample is not None:
+            x = self.downsample(x)
+        return self.relu(x+y)
 class ConvBnReLU(nn.Module):
     """Implements 2d Convolution + batch normalization + ReLU"""
 

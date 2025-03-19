@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .module import ConvBnReLU, depth_regression
+from .module import ConvBnReLU, depth_regression,ResidualBlock
 from .patchmatch import PatchMatch
 from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
 from .repvit_feature import RepViTNet
@@ -92,23 +92,11 @@ class FeatureNet(nn.Module):
         """Initialize different layers in the network"""
 
         super(FeatureNet, self).__init__()
-
+        self.in_planes = 8
         self.conv0 = ConvBnReLU(3, 8, 3, 1, 1)
-        # [B,8,H,W]
-        self.conv1 = ConvBnReLU(8, 8, 3, 1, 1)
-        # [B,16,H/2,W/2]
-        self.conv2 = ConvBnReLU(8, 16, 5, 2, 2)
-        self.conv3 = ConvBnReLU(16, 16, 3, 1, 1)
-        self.conv4 = ConvBnReLU(16, 16, 3, 1, 1)
-        # [B,32,H/4,W/4]
-        self.conv5 = ConvBnReLU(16, 32, 5, 2, 2)
-        self.conv6 = ConvBnReLU(32, 32, 3, 1, 1)
-        self.conv7 = ConvBnReLU(32, 32, 3, 1, 1)
-        # [B,64,H/8,W/8]
-        self.conv8 = ConvBnReLU(32, 64, 5, 2, 2)
-        self.conv9 = ConvBnReLU(64, 64, 3, 1, 1)
-        self.conv10 = ConvBnReLU(64, 64, 3, 1, 1)
-
+        self.Res_layer1 = self._make_layer(16, stride=2)#in 8 out 16
+        self.Res_layer2 = self._make_layer(32, stride=2)# in 16 out 32
+        self.Res_layer3 = self._make_layer(64, stride=2)# in 32 out 64
         if use_ARF:
             self.output1 = nn.Sequential(
                     ConvBnReLU(64, 64, 1,1,0),
@@ -143,7 +131,13 @@ class FeatureNet(nn.Module):
             self.output3 = nn.Conv2d(64, 16, 1, bias=False)
         self.inner1 = nn.Conv2d(32, 64, 1, bias=True)
         self.inner2 = nn.Conv2d(16, 64, 1, bias=True)
-
+    def _make_layer(self, dim, stride=1):   
+        layer1 = ResidualBlock(self.in_planes, dim, stride=stride)
+        layer2 = ResidualBlock(dim, dim)
+        layers = (layer1, layer2)
+        
+        self.in_planes = dim
+        return nn.Sequential(*layers)
     def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
         """Forward method
 
@@ -156,24 +150,24 @@ class FeatureNet(nn.Module):
         """
         output_feature: Dict[int, torch.Tensor] = {}
         
-        conv1 = self.conv1(self.conv0(x))
-        conv4 = self.conv4(self.conv3(self.conv2(conv1)))
+        feature1 = self.Res_layer1(self.conv0(x))
+        feature2 = self.Res_layer2(feature1)
 
-        conv7 = self.conv7(self.conv6(self.conv5(conv4)))
-        conv10 = self.conv10(self.conv9(self.conv8(conv7)))
+        feature3 = self.Res_layer3(feature2)
+        # conv10 = self.conv10(self.conv9(self.conv8(conv7)))
         
         # output_feature[3] = self.out1(conv10)
-        output_feature[3] = self.output1(conv10)
+        output_feature[3] = self.output1(feature3)
         # print(output_feature[3].size())
-        intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
-        del conv7
-        del conv10
+        intra_feat = F.interpolate(feature3, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(feature2)
+        del feature2
+        del feature3
         # output_feature[2] = self.out2(intra_feat) 
         output_feature[2] = self.output2(intra_feat) 
         # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
-            intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
-        del conv4
+            intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(feature1)
+        del feature1
         # output_feature[1] = self.out3(intra_feat) 
         output_feature[1] = self.output3(intra_feat)
         # print(output_feature[1].size())
