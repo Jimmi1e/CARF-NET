@@ -2,8 +2,9 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .module import ConvBnReLU, depth_regression
+from .module import ConvBnReLU, depth_regression,ResidualBlock, CoordAtt
 from .patchmatch import PatchMatch
+from .attention import *
 from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
 #from .repvit_feature import RepViTNet
 from .repvit_feature11 import RepViTNet
@@ -83,6 +84,10 @@ class TransformerFeature(nn.Module):
         output_feature[1] = self.output3(intra_feat)
         # print(output_feature[1].size())
         return output_feature
+    
+
+
+
 class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
 
@@ -113,6 +118,10 @@ class FeatureNet(nn.Module):
         self.output2 = nn.Conv2d(64, 32, 1, bias=False)
         self.output3 = nn.Conv2d(64, 16, 1, bias=False)
 
+        self.ca1 = CoordAtt(64, 64)
+        self.ca2 = CoordAtt(32, 32)
+        self.ca3 = CoordAtt(16, 16)
+
     def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
         """Forward method
 
@@ -132,19 +141,19 @@ class FeatureNet(nn.Module):
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
         
         
-        output_feature[3] = self.output1(conv10)
+        output_feature[3] = self.ca1(self.output1(conv10))
         # print(output_feature[3].size())
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
         
-        output_feature[2] = self.output2(intra_feat) 
+        output_feature[2] = self.ca2(self.output2(intra_feat)) 
         # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
         
-        output_feature[1] = self.output3(intra_feat)
+        output_feature[1] = self.ca3(self.output3(intra_feat))
         # print(output_feature[1].size())
         del intra_feat
 

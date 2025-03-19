@@ -1,6 +1,6 @@
 
 from models import PatchmatchNet, patchmatchnet_loss,TransformerFeature,SwinTransformerV2
-from models.net_ori import FeatureNet
+from models.net_new import FeatureNet
 from models.repvit_feature import RepViTNet
 from torchsummary import summary
 import torch
@@ -14,7 +14,7 @@ if __name__ == '__main__':
         propagate_neighbors=[0, 8, 16],
         evaluate_neighbors=[9, 9, 9],
         # featureNet='RepViTNet',
-        Attention_Selection='Depth'
+        # Attention_Selection='Depth'
         # image_size=(512,640)
     )
     # 创建测试数据
@@ -33,6 +33,6 @@ if __name__ == '__main__':
     
     # model=SwinTransformerV2()
     # summary(model, input_size=(3, 224, 224), batch_size=1, device="cpu")
-    # model = FeatureNet()
+    model = FeatureNet()
     
-    # summary(model, input_size=(3, 512, 512), batch_size=1,device="cpu")
+    summary(model, input_size=(3, 512, 512), batch_size=1,device="cpu")

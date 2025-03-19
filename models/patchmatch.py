@@ -14,7 +14,6 @@ import torch.nn.functional as F
 from .module import ConvBnReLU3D, differentiable_warping, is_empty, ConvBNReLU3D_Attention
 
 
-
 class DepthInitialization(nn.Module):
     """Initialization Stage Class"""
 
@@ -124,7 +123,21 @@ class Propagation(nn.Module):
         ).view(batch, num_neighbors, height, width)
         return torch.sort(torch.cat((depth_sample, propagate_depth_sample), dim=1), dim=1)[0]
 
+class CostVolumeRegularizer(nn.Module):
+    """3D 卷积进行代价体积正则化"""
+    def __init__(self):
+        super(CostVolumeRegularizer, self).__init__()
+        self.conv3d = nn.Sequential(
+            nn.Conv3d(1, 4, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(4, 1, kernel_size=3, padding=1)
+        )
 
+    def forward(self, cost_volume):
+        cost_volume = cost_volume.unsqueeze(1)  #变成[B, 1, Ndepth, H, W]
+        cost_volume = self.conv3d(cost_volume)
+        return cost_volume.squeeze(1)  # 恢复到[B, Ndepth, H, W]
+    
 class Evaluation(nn.Module):
     """Evaluation module for adaptive evaluation step in Learning-based Patchmatch
     Used to compute the matching costs for all the hypotheses and choose best solutions.
@@ -142,6 +155,7 @@ class Evaluation(nn.Module):
         self.pixel_wise_net = PixelwiseNet(self.G)
         self.softmax = nn.LogSoftmax(dim=1)
         self.similarity_net = SimilarityNet(self.G, Attention_Selection)
+        self.cost_reg = CostVolumeRegularizer()  #加入正则化
 
     def forward(
         self,
@@ -218,6 +232,7 @@ class Evaluation(nn.Module):
         similarity = similarity_sum.div_(pixel_wise_weight_sum)  # [B, G, Ndepth, H, W]
         # adaptive spatial cost aggregation
         score = self.similarity_net(similarity, grid, weight)  # [B, G, Ndepth, H, W]
+        score = self.cost_reg(score)  # 正则化
         # apply softmax to get probability
         score = torch.exp(self.softmax(score))
 
