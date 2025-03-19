@@ -252,6 +252,7 @@ class PatchmatchNet(nn.Module):
         num_features = [16, 32, 64],
         Attention_Selection='None',
         Attention_Selection_FWN='None',
+        Use_Cost_reg=False
     ) -> None:
         """Initialize modules in PatchmatchNet
 
@@ -299,6 +300,7 @@ class PatchmatchNet(nn.Module):
                 stage=i + 1,
                 Attention_Selection=Attention_Selection,
                 Attention_Selection_FWN=Attention_Selection_FWN,
+                Use_Cost_reg=Use_Cost_reg
             )
             setattr(self, f"patchmatch_{i+1}", patchmatch)
 

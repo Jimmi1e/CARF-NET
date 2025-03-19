@@ -130,7 +130,7 @@ class Evaluation(nn.Module):
     Used to compute the matching costs for all the hypotheses and choose best solutions.
     """
 
-    def __init__(self, G: int = 8, Attention_Selection='None') -> None:
+    def __init__(self, G: int = 8, Attention_Selection='None',Use_Cost_reg=False) -> None:
         """Initialize method`
 
         Args:
@@ -142,6 +142,8 @@ class Evaluation(nn.Module):
         self.pixel_wise_net = PixelwiseNet(self.G)
         self.softmax = nn.LogSoftmax(dim=1)
         self.similarity_net = SimilarityNet(self.G, Attention_Selection)
+        self.use_cost_reg = Use_Cost_reg
+        self.cost_reg = CostVolumeRegularizer()
 
     def forward(
         self,
@@ -218,6 +220,8 @@ class Evaluation(nn.Module):
         similarity = similarity_sum.div_(pixel_wise_weight_sum)  # [B, G, Ndepth, H, W]
         # adaptive spatial cost aggregation
         score = self.similarity_net(similarity, grid, weight)  # [B, G, Ndepth, H, W]
+        if self.use_cost_reg:
+            score = self.cost_reg(score)  # 正则化
         # apply softmax to get probability
         score = torch.exp(self.softmax(score))
 
@@ -255,7 +259,8 @@ class PatchMatch(nn.Module):
         evaluate_neighbors: int = 9,
         stage: int = 3,
         Attention_Selection_FWN='None',
-        Attention_Selection='None'
+        Attention_Selection='None',
+        Use_Cost_reg=False
     ) -> None:
         """Initialize method
 
@@ -285,7 +290,7 @@ class PatchMatch(nn.Module):
 
         self.depth_initialization = DepthInitialization(patchmatch_num_sample)
         self.propagation = Propagation()
-        self.evaluation = Evaluation(self.G, Attention_Selection)
+        self.evaluation = Evaluation(self.G, Attention_Selection,Use_Cost_reg)
         # adaptive propagation: last iteration on stage 1 does not have propagation,
         # but we still define this for TorchScript export compatibility
         self.propa_conv = nn.Conv2d(
@@ -592,7 +597,7 @@ class FeatureWeightNet(nn.Module):
     cost aggregation.
     """
 
-    def __init__(self, neighbors: int = 9, G: int = 8, Attention_Selection_FWN='None',) -> None:
+    def __init__(self, neighbors: int = 9, G: int = 8, Attention_Selection_FWN='None') -> None:
         """Initialize method
 
         Args:
@@ -717,3 +722,17 @@ class PixelwiseNet(nn.Module):
         """
         # [B,1,H,W]
         return torch.max(self.output(self.conv2(self.conv1(self.conv0(x1))).squeeze(1)), dim=1)[0].unsqueeze(1)
+class CostVolumeRegularizer(nn.Module):
+    """3D 卷积进行代价体积正则化"""
+    def __init__(self):
+        super(CostVolumeRegularizer, self).__init__()
+        self.conv3d = nn.Sequential(
+            nn.Conv3d(1, 4, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(4, 1, kernel_size=3, padding=1)
+        )
+
+    def forward(self, cost_volume):
+        cost_volume = cost_volume.unsqueeze(1)  #变成[B, 1, Ndepth, H, W]
+        cost_volume = self.conv3d(cost_volume)
+        return cost_volume.squeeze(1)  # 恢复到[B, Ndepth, H, W]
