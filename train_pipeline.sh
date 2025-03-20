@@ -1,14 +1,14 @@
 #!/encs/bin/tcsh
 
-#SBATCH --job-name Training—swin-pmnet
+#SBATCH --job-name ResFeOri
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yuhangchen0425@gmail.com
 #SBATCH --chdir=./
 #SBATCH -o output-%A.log
 
 # Request Resources
-#SBATCH --mem=60G
-#SBATCH -n 32
+#SBATCH --mem=30G
+#SBATCH -n 8
 #SBATCH --gpus=1
 #SBATCH -p ps
 
@@ -78,7 +78,7 @@ set DTU_TRAINING = "/nfs/speed-scratch/$USER/dtuTrainingData/dtu/"
 
 echo "Running Training processing..."
 echo "================================================"
-python train_dtu.py --batch_size 4 --epochs 16 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt --logdir ./checkpoints/debug_Res_featureNet --parallel
+python train_dtu.py --batch_size 4 --epochs 16 --trainpath $DTU_TRAINING --trainlist lists/dtu/train.txt --vallist lists/dtu/val.txt --logdir ./checkpoints/debug_Res_featureNet_origin_loss --parallel
 
 conda deactivate
 exit
