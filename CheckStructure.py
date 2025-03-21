@@ -17,8 +17,9 @@ if __name__ == '__main__':
         propagate_neighbors=[0, 8, 16],
         evaluate_neighbors=[9, 9, 9],
         use_ARF=True,
-        Attention_Selection='CBAM',
-        Use_Cost_reg=True
+        use_CA=True,
+        Attention_Selection='Depth',
+        # Use_Cost_reg=True
         # Use_Cost_reg=True
         # Attention_Selection='CBAM'
         # featureNet='RepViTNet09',

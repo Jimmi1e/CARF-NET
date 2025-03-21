@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .module import ConvBnReLU, depth_regression
+from .module import ConvBnReLU, depth_regression,CoordAtt
 from .patchmatch import PatchMatch
 from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
 from .repvit_feature import RepViTNet
@@ -88,11 +88,11 @@ class TransformerFeature(nn.Module):
 class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
 
-    def __init__(self,use_ARF=False):
+    def __init__(self,use_ARF=False,use_CA=False):
         """Initialize different layers in the network"""
 
         super(FeatureNet, self).__init__()
-
+        self.use_CA=use_CA
         self.conv0 = ConvBnReLU(3, 8, 3, 1, 1)
         # [B,8,H,W]
         self.conv1 = ConvBnReLU(8, 8, 3, 1, 1)
@@ -115,32 +115,36 @@ class FeatureNet(nn.Module):
                     # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
                     # nn.BatchNorm2d(64),
                     # nn.ReLU(inplace=True),
-                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
-                    # nn.BatchNorm2d(64),
-                    # nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
                     DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1))
             self.output2 = nn.Sequential(
                     ConvBnReLU(64, 64, 3,1,1),
                     # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
                     # nn.BatchNorm2d(64),
                     # nn.ReLU(inplace=True),
-                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
-                    # nn.BatchNorm2d(64),
-                    # nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
                     DCN(in_channels=64, out_channels=32, kernel_size=3,stride=1, padding=1))
             self.output3 = nn.Sequential(
                     ConvBnReLU(64, 64, 3,1,1),
                     # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
                     # nn.BatchNorm2d(64),
                     # nn.ReLU(inplace=True),
-                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
-                    # nn.BatchNorm2d(64),
-                    # nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(inplace=True),
                     DCN(in_channels=64, out_channels=16, kernel_size=3,stride=1, padding=1))
         else:
             self.output1 = nn.Conv2d(64, 64, 1, bias=False)
             self.output2 = nn.Conv2d(64, 32, 1, bias=False)
             self.output3 = nn.Conv2d(64, 16, 1, bias=False)
+        if use_CA:
+            self.ca1 = CoordAtt(64, 64)
+            self.ca2 = CoordAtt(32, 32)
+            self.ca3 = CoordAtt(16, 16)
         self.inner1 = nn.Conv2d(32, 64, 1, bias=True)
         self.inner2 = nn.Conv2d(16, 64, 1, bias=True)
 
@@ -164,18 +168,24 @@ class FeatureNet(nn.Module):
         
         # output_feature[3] = self.out1(conv10)
         output_feature[3] = self.output1(conv10)
+        if self.use_CA:
+            output_feature[3] = self.ca1(output_feature[3])
         # print(output_feature[3].size())
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
         # output_feature[2] = self.out2(intra_feat) 
         output_feature[2] = self.output2(intra_feat) 
+        if self.use_CA:
+            output_feature[2] = self.ca2(output_feature[2])
         # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
         # output_feature[1] = self.out3(intra_feat) 
         output_feature[1] = self.output3(intra_feat)
+        if self.use_CA:
+            output_feature[1] = self.ca3(output_feature[1])
         # print(output_feature[1].size())
         del intra_feat
 
@@ -247,6 +257,7 @@ class PatchmatchNet(nn.Module):
         evaluate_neighbors: List[int],
         use_ARF=False,
         use_FMT=False,
+        use_CA=False,
         featureNet='FeatureNet',
         image_size=(512,512),
         num_features = [16, 32, 64],
@@ -268,7 +279,7 @@ class PatchmatchNet(nn.Module):
         self.use_FMT = use_FMT
         self.stages = 4
         if featureNet == 'FeatureNet':
-            self.feature = FeatureNet(use_ARF=use_ARF)
+            self.feature = FeatureNet(use_ARF=use_ARF,use_CA=use_CA)
         elif featureNet == 'TransformerFeature':
             self.feature = TransformerFeature(img_size=image_size)
         elif featureNet=='RepViTNet':
@@ -511,7 +522,7 @@ def depth_normal_loss(
             normal_loss = 1 - torch.mean(torch.sum(predit_normal * gt_normal, dim=1))
             depth_loss=F.smooth_l1_loss(predit_depth, gt_depth, reduction="mean")
             #print('normal',normal_loss,'Depth',depth_loss)
-            loss = loss +depth_loss +normal_loss*20
+            loss = loss +depth_loss +normal_loss*10
 
     return loss
 def entropy_loss(prob_volume, depth_gt, mask, depth_value, return_prob_map=False):
