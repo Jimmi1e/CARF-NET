@@ -19,6 +19,7 @@ if __name__ == '__main__':
         use_ARF=True,
         use_CA=True,
         Attention_Selection='Depth',
+        featureNet='ResFeatureNet'
         # Use_Cost_reg=True
         # Use_Cost_reg=True
         # Attention_Selection='CBAM'

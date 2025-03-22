@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .module import ConvBnReLU, depth_regression,CoordAtt
+from .module import ConvBnReLU, depth_regression,CoordAtt,ResidualBlock
 from .patchmatch import PatchMatch
 from .swin_transformer_v2 import PatchEmbed,BasicLayer,PatchMerging
 from .repvit_feature import RepViTNet
@@ -84,6 +84,107 @@ class TransformerFeature(nn.Module):
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(feature_list[-4])
         output_feature[1] = self.output3(intra_feat)
         # print(output_feature[1].size())
+        return output_feature
+class ResFeatureNet(nn.Module):
+    def __init__(self,use_ARF=False,use_CA=False):
+        """Initialize different layers in the network"""
+
+        super(ResFeatureNet, self).__init__()
+        self.use_CA=use_CA
+        self.in_planes = 8
+        self.conv0 = ConvBnReLU(3, 8, 3, 1, 1)
+        self.Res_layer1 = self._make_layer(16, stride=2)#in 8 out 16
+        self.Res_layer2 = self._make_layer(32, stride=2)# in 16 out 32
+        self.Res_layer3 = self._make_layer(64, stride=2)# in 32 out 64
+        if use_ARF:
+            self.output1 = nn.Sequential(
+                    ConvBnReLU(64, 64, 1,1,0),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1))
+            self.output2 = nn.Sequential(
+                    ConvBnReLU(64, 64, 3,1,1),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=32, kernel_size=3,stride=1, padding=1))
+            self.output3 = nn.Sequential(
+                    ConvBnReLU(64, 64, 3,1,1),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    # DCN(in_channels=64, out_channels=64, kernel_size=3,stride=1, padding=1),
+                    # nn.BatchNorm2d(64),
+                    # nn.ReLU(inplace=True),
+                    DCN(in_channels=64, out_channels=16, kernel_size=3,stride=1, padding=1))
+        else:
+            self.output1 = nn.Conv2d(64, 64, 1, bias=False)
+            self.output2 = nn.Conv2d(64, 32, 1, bias=False)
+            self.output3 = nn.Conv2d(64, 16, 1, bias=False)
+        if use_CA:
+            self.ca1 = CoordAtt(64, 64)
+            self.ca2 = CoordAtt(32, 32)
+            self.ca3 = CoordAtt(16, 16)
+        self.inner1 = nn.Conv2d(32, 64, 1, bias=True)
+        self.inner2 = nn.Conv2d(16, 64, 1, bias=True)
+    def _make_layer(self, dim, stride=1):   
+        layer1 = ResidualBlock(self.in_planes, dim, stride=stride)
+        layer2 = ResidualBlock(dim, dim)
+        layers = (layer1, layer2)
+        
+        self.in_planes = dim
+        return nn.Sequential(*layers)
+    def forward(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
+        """Forward method
+
+        Args:
+            x: images from a single view, in the shape of [B, C, H, W]. Generally, C=3
+
+        Returns:
+            output_feature: a python dictionary contains extracted features from stage 1 to stage 3
+                keys are 1, 2, and 3
+        """
+        output_feature: Dict[int, torch.Tensor] = {}
+        
+        feature1 = self.Res_layer1(self.conv0(x))
+        feature2 = self.Res_layer2(feature1)
+
+        feature3 = self.Res_layer3(feature2)
+        # conv10 = self.conv10(self.conv9(self.conv8(conv7)))
+        
+        # output_feature[3] = self.out1(conv10)
+        output_feature[3] = self.output1(feature3)
+        
+        if self.use_CA:
+            output_feature[3] = self.ca1(output_feature[3])+output_feature[3]
+        # print(output_feature[3].size())
+        intra_feat = F.interpolate(feature3, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(feature2)
+        del feature2
+        del feature3
+        # output_feature[2] = self.out2(intra_feat) 
+        
+        output_feature[2] = self.output2(intra_feat) 
+        if self.use_CA:
+            output_feature[2] = self.ca2(output_feature[2])+output_feature[2]
+        # print(output_feature[2].size()) 
+        intra_feat = F.interpolate(
+            intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(feature1)
+        del feature1
+        
+        # output_feature[1] = self.out3(intra_feat) 
+        output_feature[1] = self.output3(intra_feat)
+        if self.use_CA:
+            output_feature[1] = self.ca3(output_feature[1])+output_feature[1]
+        # print(output_feature[1].size())
+        del intra_feat
+
         return output_feature
 class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
@@ -167,25 +268,28 @@ class FeatureNet(nn.Module):
         conv10 = self.conv10(self.conv9(self.conv8(conv7)))
         
         # output_feature[3] = self.out1(conv10)
+        
         output_feature[3] = self.output1(conv10)
         if self.use_CA:
-            output_feature[3] = self.ca1(output_feature[3])
+            output_feature[3] = self.ca1(output_feature[3])+output_feature[3]
         # print(output_feature[3].size())
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
         del conv10
         # output_feature[2] = self.out2(intra_feat) 
+        
         output_feature[2] = self.output2(intra_feat) 
         if self.use_CA:
-            output_feature[2] = self.ca2(output_feature[2])
+            output_feature[2] = self.ca2(output_feature[2])+output_feature[2]
         # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
         del conv4
         # output_feature[1] = self.out3(intra_feat) 
+        
         output_feature[1] = self.output3(intra_feat)
         if self.use_CA:
-            output_feature[1] = self.ca3(output_feature[1])
+            output_feature[1] = self.ca3(output_feature[1])+output_feature[1]
         # print(output_feature[1].size())
         del intra_feat
 
@@ -288,6 +392,8 @@ class PatchmatchNet(nn.Module):
             self.feature = RepViTNet11(ckpt_path="checkpoints/repvit_m1_1_distill_450e.pth")
         elif featureNet=="RepViTNet09":
             self.feature = RepViTNet09(ckpt_path="checkpoints/repvit_m0_9_distill_450e.pth")
+        elif featureNet=="ResFeatureNet":
+            self.feature = ResFeatureNet(use_ARF=use_ARF,use_CA=use_CA)
         self.patchmatch_num_sample = patchmatch_num_sample
 
         # num_features = [16, 32, 64]  #move to init

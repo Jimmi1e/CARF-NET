@@ -6,7 +6,21 @@ and depth regression based upon expectation of an input probability distribution
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+class h_sigmoid(nn.Module):
+     def __init__(self, inplace=True):
+         super(h_sigmoid, self).__init__()
+         self.relu = nn.ReLU6(inplace=inplace)
+ 
+     def forward(self, x):
+         return self.relu(x + 3) / 6
+ 
+class h_swish(nn.Module):
+     def __init__(self, inplace=True):
+         super(h_swish, self).__init__()
+         self.sigmoid = h_sigmoid(inplace=inplace)
+ 
+     def forward(self, x):
+         return x * self.sigmoid(x)
 class CoordAtt(nn.Module):
      def __init__(self, inp, oup, groups=32):
          super(CoordAtt, self).__init__()
@@ -19,7 +33,7 @@ class CoordAtt(nn.Module):
          self.bn1 = nn.BatchNorm2d(mip)
          self.conv2 = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
          self.conv3 = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
-         self.relu = nn.ReLU(inplace=True)  # 替换 h_swish()
+         self.relu = h_swish()#nn.ReLU(inplace=True)  # 替换 h_swish()
  
      def forward(self, x):
          identity = x
@@ -42,6 +56,24 @@ class CoordAtt(nn.Module):
          y = identity * x_w * x_h
  
          return y
+class ResidualBlock(nn.Module):
+    def __init__(self, in_planes, planes, stride=1):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = ConvBnReLU(in_planes, planes, 3, stride=stride, pad=1)
+        self.conv2 = ConvBn(planes, planes, 3, stride=1, pad=1)
+
+        self.relu = nn.ReLU(inplace=True)
+
+        if stride == 1:
+            self.downsample = None
+        else:    
+            self.downsample = ConvBn(in_planes, planes, 3, stride=stride, pad=1)
+
+    def forward(self, x):
+        y = self.conv2(self.conv1(x))
+        if self.downsample is not None:
+            x = self.downsample(x)
+        return self.relu(x+y)
 class ConvBnReLU(nn.Module):
     """Implements 2d Convolution + batch normalization + ReLU"""
 

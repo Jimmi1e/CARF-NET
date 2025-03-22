@@ -107,8 +107,8 @@ if args.parallel and args.mode in ["train", "val"]:
 model.cuda()
 
 
-# model_loss = patchmatchnet_loss
-model_loss=depth_normal_loss
+model_loss = patchmatchnet_loss
+#model_loss=depth_normal_loss
 
 
 
