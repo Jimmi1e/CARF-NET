@@ -6,8 +6,74 @@ and depth regression based upon expectation of an input probability distribution
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+class h_sigmoid(nn.Module):
+     def __init__(self, inplace=True):
+         super(h_sigmoid, self).__init__()
+         self.relu = nn.ReLU6(inplace=inplace)
+ 
+     def forward(self, x):
+         return self.relu(x + 3) / 6
+ 
+class h_swish(nn.Module):
+     def __init__(self, inplace=True):
+         super(h_swish, self).__init__()
+         self.sigmoid = h_sigmoid(inplace=inplace)
+ 
+     def forward(self, x):
+         return x * self.sigmoid(x)
+class CoordAtt(nn.Module):
+     def __init__(self, inp, oup, groups=32):
+         super(CoordAtt, self).__init__()
+         self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+         self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+ 
+         mip = max(8, inp // groups)
+ 
+         self.conv1 = nn.Conv2d(inp, mip, kernel_size=1, stride=1, padding=0)
+         self.bn1 = nn.BatchNorm2d(mip)
+         self.conv2 = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
+         self.conv3 = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
+         self.relu = h_swish()#nn.ReLU(inplace=True)  # 替换 h_swish()
+ 
+     def forward(self, x):
+         identity = x
+         n, c, h, w = x.size()
+         x_h = self.pool_h(x)
+         x_w = self.pool_w(x).permute(0, 1, 3, 2)
+ 
+         y = torch.cat([x_h, x_w], dim=2)
+         y = self.conv1(y)
+         y = self.bn1(y)
+         y = self.relu(y)
+         x_h, x_w = torch.split(y, [h, w], dim=2)
+         x_w = x_w.permute(0, 1, 3, 2)
+ 
+         x_h = self.conv2(x_h).sigmoid()
+         x_w = self.conv3(x_w).sigmoid()
+         x_h = x_h.expand(-1, -1, h, w)
+         x_w = x_w.expand(-1, -1, h, w)
+ 
+         y = identity * x_w * x_h
+ 
+         return y
+class ResidualBlock(nn.Module):
+    def __init__(self, in_planes, planes, stride=1):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = ConvBnReLU(in_planes, planes, 3, stride=stride, pad=1)
+        self.conv2 = ConvBn(planes, planes, 3, stride=1, pad=1)
 
+        self.relu = nn.ReLU(inplace=True)
 
+        if stride == 1:
+            self.downsample = None
+        else:    
+            self.downsample = ConvBn(in_planes, planes, 3, stride=stride, pad=1)
+
+    def forward(self, x):
+        y = self.conv2(self.conv1(x))
+        if self.downsample is not None:
+            x = self.downsample(x)
+        return self.relu(x+y)
 class ConvBnReLU(nn.Module):
     """Implements 2d Convolution + batch normalization + ReLU"""
 
@@ -71,6 +137,155 @@ class ConvBnReLU3D(nn.Module):
         """forward method"""
         return F.relu(self.bn(self.conv(x)), inplace=True)
 
+
+class DepthAxialAttention3D(nn.Module):
+    """DepthAxialAttention module，enhance z direction feature(depth information)"""
+    def __init__(self, in_channels, reduction_ratio=8):
+        super().__init__()
+        self.channel_attention = nn.Sequential(
+            nn.AdaptiveAvgPool3d(1),
+            nn.Conv3d(in_channels, in_channels//reduction_ratio, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(in_channels//reduction_ratio, in_channels, 1),
+            nn.Sigmoid()
+        )
+        
+        self.depth_conv = nn.Conv3d(
+            in_channels, in_channels, 
+            kernel_size=(3, 1, 1),
+            padding=(1, 0, 0),
+            groups=in_channels
+        )
+        self.spatial_attention = nn.Sequential(
+            nn.Conv3d(in_channels, 1, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        ca = self.channel_attention(x)
+        x_ca = x * ca     
+        z_feat = self.depth_conv(x_ca)
+        
+        sa = self.spatial_attention(z_feat)
+        out = x_ca * sa
+        return out + x  # residual connection
+
+class ConvBNReLU3D_Attention(nn.Module):
+    def __init__(self, in_channels, out_channels, 
+                 kernel_size=3, stride=1, padding=1, dilation: int = 1,
+                 attention_type='axial'):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, 
+                     kernel_size, stride, padding,dilation, bias=False),
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+        if attention_type == 'axial':
+            self.attention = DepthAxialAttention3D(out_channels)
+        elif attention_type == 'cbam':
+            self.attention = CBAM3D(out_channels)
+        elif attention_type == 'se':
+            self.attention = scSE3D(out_channels)
+        else:
+            self.attention = nn.Identity()
+
+    def forward(self, x):
+        x = self.conv(x)
+        return self.attention(x)
+
+class CBAM3D(nn.Module):
+    """
+    3D CBAM module
+    This module computes both channel and spatial attention using 
+    adaptive average & max pooling and 1x1x1 convolutions.
+    
+    Args:
+        in_channels: Number of input channels.
+        reduction_ratio: Reduction ratio for channel attention.
+        spatial_kernel: Kernel size for the spatial attention convolution.
+    """
+    def __init__(self, in_channels, reduction_ratio=8, spatial_kernel=7):
+        super(CBAM3D, self).__init__()
+        # Channel Att
+        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.max_pool = nn.AdaptiveMaxPool3d(1)
+        self.mlp = nn.Sequential(
+            nn.Conv3d(in_channels, in_channels // reduction_ratio, kernel_size=1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(in_channels // reduction_ratio, in_channels, kernel_size=1, bias=False)
+        )
+        self.sigmoid_channel = nn.Sigmoid()
+        #Spatial Att
+        self.conv_spatial = nn.Conv3d(2, 1, kernel_size=spatial_kernel, 
+                                      padding=(spatial_kernel - 1) // 2, bias=False)
+        self.sigmoid_spatial = nn.Sigmoid()
+
+    def forward(self, x):
+        #x:[B, C, D, H, W]
+        #Channel Attention
+        avg_out = self.mlp(self.avg_pool(x))  # [B, C, 1, 1, 1]
+        max_out = self.mlp(self.max_pool(x))  # [B, C, 1, 1, 1]
+        channel_att = self.sigmoid_channel(avg_out + max_out)  # [B, C, 1, 1, 1]
+        x_channel = x * channel_att
+
+        # Spatial Attention
+        avg_out_spatial = torch.mean(x_channel, dim=1, keepdim=True)  # [B,1,D,H,W]
+        max_out_spatial, _ = torch.max(x_channel, dim=1, keepdim=True)  # [B,1,D,H,W]
+        spatial_cat = torch.cat([avg_out_spatial, max_out_spatial], dim=1)  # [B,2,D,H,W]
+        spatial_att = self.sigmoid_spatial(self.conv_spatial(spatial_cat))  # [B,1,D,H,W]
+        out = x_channel * spatial_att
+        return out
+
+# class HybridAttentionNet(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+#         #
+#         self.encoder1 = ConvBNReLU3D_Attention(3, 64, attention_type='axial')
+#         # Deep layre CBAM
+#         self.encoder2 = ConvBNReLU3D_Attention(64, 128, attention_type='cbam')
+#         #Mildde layer dont use any attention module
+#         self.bottleneck = ConvBNReLU3D_Attention(128, 256)
+
+class sSE3D(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.conv1x1 = nn.Conv3d(in_channels, 1, kernel_size=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, U):
+        # U: [bs, c, d, h, w] -> q: [bs, 1, d, h, w]
+        q = self.conv1x1(U)
+        q = self.sigmoid(q)
+        return U * q
+
+class cSE3D(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        # using 3D adaptive pooling ，squeeze spatial volume to 1×1×1
+        self.avgpool = nn.AdaptiveAvgPool3d(1)
+        self.conv_squeeze = nn.Conv3d(in_channels, in_channels // 2, kernel_size=1, bias=False)
+        self.conv_excitation = nn.Conv3d(in_channels // 2, in_channels, kernel_size=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, U):
+        # [bs, c, d, h, w] to [bs, c, 1, 1, 1]
+        z = self.avgpool(U)
+        z = self.conv_squeeze(z)
+        z = self.conv_excitation(z)
+        z = self.sigmoid(z)
+        return U * z.expand_as(U)
+
+class scSE3D(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.cSE = cSE3D(in_channels)
+        self.sSE = sSE3D(in_channels)
+
+    def forward(self, U):
+        U_cse = self.cSE(U)
+        U_sse = self.sSE(U)
+        return U_cse + U_sse
 
 class ConvBnReLU1D(nn.Module):
     """Implements 1d Convolution + batch normalization + ReLU."""

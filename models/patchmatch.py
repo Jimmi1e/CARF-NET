@@ -11,7 +11,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .module import ConvBnReLU3D, differentiable_warping, is_empty
+from .module import ConvBnReLU3D, differentiable_warping, is_empty, ConvBNReLU3D_Attention
+
 
 
 class DepthInitialization(nn.Module):
@@ -129,7 +130,7 @@ class Evaluation(nn.Module):
     Used to compute the matching costs for all the hypotheses and choose best solutions.
     """
 
-    def __init__(self, G: int = 8) -> None:
+    def __init__(self, G: int = 8, Attention_Selection='None',Use_Cost_reg=False) -> None:
         """Initialize method`
 
         Args:
@@ -140,7 +141,9 @@ class Evaluation(nn.Module):
         self.G = G
         self.pixel_wise_net = PixelwiseNet(self.G)
         self.softmax = nn.LogSoftmax(dim=1)
-        self.similarity_net = SimilarityNet(self.G)
+        self.similarity_net = SimilarityNet(self.G, Attention_Selection)
+        self.use_cost_reg = Use_Cost_reg
+        self.cost_reg = CostVolumeRegularizer()
 
     def forward(
         self,
@@ -217,6 +220,8 @@ class Evaluation(nn.Module):
         similarity = similarity_sum.div_(pixel_wise_weight_sum)  # [B, G, Ndepth, H, W]
         # adaptive spatial cost aggregation
         score = self.similarity_net(similarity, grid, weight)  # [B, G, Ndepth, H, W]
+        if self.use_cost_reg:
+            score = self.cost_reg(score)  # 正则化
         # apply softmax to get probability
         score = torch.exp(self.softmax(score))
 
@@ -253,6 +258,9 @@ class PatchMatch(nn.Module):
         propagate_neighbors: int = 16,
         evaluate_neighbors: int = 9,
         stage: int = 3,
+        Attention_Selection_FWN='None',
+        Attention_Selection='None',
+        Use_Cost_reg=False
     ) -> None:
         """Initialize method
 
@@ -282,7 +290,7 @@ class PatchMatch(nn.Module):
 
         self.depth_initialization = DepthInitialization(patchmatch_num_sample)
         self.propagation = Propagation()
-        self.evaluation = Evaluation(self.G)
+        self.evaluation = Evaluation(self.G, Attention_Selection,Use_Cost_reg)
         # adaptive propagation: last iteration on stage 1 does not have propagation,
         # but we still define this for TorchScript export compatibility
         self.propa_conv = nn.Conv2d(
@@ -309,7 +317,7 @@ class PatchMatch(nn.Module):
         )
         nn.init.constant_(self.eval_conv.weight, 0.0)
         nn.init.constant_(self.eval_conv.bias, 0.0)
-        self.feature_weight_net = FeatureWeightNet(self.evaluate_neighbors, self.G)
+        self.feature_weight_net = FeatureWeightNet(self.evaluate_neighbors, self.G,Attention_Selection_FWN)
 
     def get_grid(
         self, grid_type: int, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device
@@ -536,16 +544,22 @@ class SimilarityNet(nn.Module):
     2. Perform adaptive spatial cost aggregation to get final cost (scores)
     """
 
-    def __init__(self, G: int) -> None:
+    def __init__(self, G: int, Attention_Selection='None') -> None:
         """Initialize method
 
         Args:
             G: the feature channels of input will be divided evenly into G groups
         """
         super(SimilarityNet, self).__init__()
+        
 
         self.conv0 = ConvBnReLU3D(in_channels=G, out_channels=16, kernel_size=1, stride=1, pad=0)
-        self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        if Attention_Selection=='None':
+            self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        elif Attention_Selection=='CBAM':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='cbam' )
+        elif Attention_Selection=='Depth':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='axial')
         self.similarity = nn.Conv3d(in_channels=8, out_channels=1, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x1: torch.Tensor, grid: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
@@ -583,7 +597,7 @@ class FeatureWeightNet(nn.Module):
     cost aggregation.
     """
 
-    def __init__(self, neighbors: int = 9, G: int = 8) -> None:
+    def __init__(self, neighbors: int = 9, G: int = 8, Attention_Selection_FWN='None') -> None:
         """Initialize method
 
         Args:
@@ -595,7 +609,15 @@ class FeatureWeightNet(nn.Module):
         self.G = G
 
         self.conv0 = ConvBnReLU3D(in_channels=G, out_channels=16, kernel_size=1, stride=1, pad=0)
-        self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        # self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        if Attention_Selection_FWN=='None':
+            self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        elif Attention_Selection_FWN=='CBAM':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='cbam' )
+        elif Attention_Selection_FWN=='SE':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='se' )
+        elif Attention_Selection_FWN=='Depth':
+            self.conv1 = ConvBNReLU3D_Attention(in_channels=16, out_channels=8, kernel_size=1, stride=1, padding=0, attention_type='axial')
         self.similarity = nn.Conv3d(in_channels=8, out_channels=1, kernel_size=1, stride=1, padding=0)
 
         self.output = nn.Sigmoid()
@@ -700,3 +722,17 @@ class PixelwiseNet(nn.Module):
         """
         # [B,1,H,W]
         return torch.max(self.output(self.conv2(self.conv1(self.conv0(x1))).squeeze(1)), dim=1)[0].unsqueeze(1)
+class CostVolumeRegularizer(nn.Module):
+    """3D 卷积进行代价体积正则化"""
+    def __init__(self):
+        super(CostVolumeRegularizer, self).__init__()
+        self.conv3d = nn.Sequential(
+            nn.Conv3d(1, 4, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(4, 1, kernel_size=3, padding=1)
+        )
+
+    def forward(self, cost_volume):
+        cost_volume = cost_volume.unsqueeze(1)  #变成[B, 1, Ndepth, H, W]
+        cost_volume = self.conv3d(cost_volume)
+        return cost_volume.squeeze(1)  # 恢复到[B, Ndepth, H, W]

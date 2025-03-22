@@ -1,14 +1,14 @@
 #!/encs/bin/tcsh
 
-#SBATCH --job-name PatchmatchNet-eval
+#SBATCH --job-name Eval_res
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=yuhangchen0425@gmail.com
 #SBATCH --chdir=./
 #SBATCH -o output-%A.log
 
 # Request Resources
-#SBATCH --mem=60G
-#SBATCH -n 32
+#SBATCH --mem=30G
+#SBATCH -n 8
 #SBATCH --gpus=1
 #SBATCH -p pt
 
@@ -67,16 +67,20 @@ echo "============================"
 conda info --envs
 conda list
 
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+nvidia-smi
 sleep 30
 
-CHECKPOINT_FILE="./checkpoints/params_000007.ckpt"
+
+set CHECKPOINT_FILE = "./checkpoints/debug_Res_featureNet/model_000014.ckpt"
 
 # test on DTU's evaluation set
-DTU_TESTING="/home/dtu/"
+set DTU_TESTING = "/speed-scratch/$USER/dtu/"
+set Eval_result = "/speed-scratch/$USER/DTU_Eval_result/Res_newloss_ratio20/"
 echo "Running eval processing..."
 echo "================================================"
-srun python eval.py --scan_list ./lists/dtu/test.txt --input_folder=$DTU_TESTING --output_folder=$DTU_TESTING \
---checkpoint_path $CHECKPOINT_FILE --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.8 "$@"
+python eval.py --scan_list ./lists/dtu/test.txt --input_folder=$DTU_TESTING --output_folder=$Eval_result \
+--checkpoint_path $CHECKPOINT_FILE --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.8
 # srun python yolo_video.py --input video/v1.avi --output video/001.avi #--gpu_num 1
 
 conda deactivate
