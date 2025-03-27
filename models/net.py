@@ -163,7 +163,7 @@ class ResFeatureNet(nn.Module):
         output_feature[3] = self.output1(feature3)
         
         if self.use_CA:
-            output_feature[3] = self.ca1(output_feature[3])+output_feature[3]
+            output_feature[3] = self.ca1(output_feature[3])
         # print(output_feature[3].size())
         intra_feat = F.interpolate(feature3, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(feature2)
         del feature2
@@ -172,7 +172,7 @@ class ResFeatureNet(nn.Module):
         
         output_feature[2] = self.output2(intra_feat) 
         if self.use_CA:
-            output_feature[2] = self.ca2(output_feature[2])+output_feature[2]
+            output_feature[2] = self.ca2(output_feature[2])
         # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(feature1)
@@ -181,7 +181,7 @@ class ResFeatureNet(nn.Module):
         # output_feature[1] = self.out3(intra_feat) 
         output_feature[1] = self.output3(intra_feat)
         if self.use_CA:
-            output_feature[1] = self.ca3(output_feature[1])+output_feature[1]
+            output_feature[1] = self.ca3(output_feature[1])
         # print(output_feature[1].size())
         del intra_feat
 
@@ -271,7 +271,7 @@ class FeatureNet(nn.Module):
         
         output_feature[3] = self.output1(conv10)
         if self.use_CA:
-            output_feature[3] = self.ca1(output_feature[3])+output_feature[3]
+            output_feature[3] = self.ca1(output_feature[3])
         # print(output_feature[3].size())
         intra_feat = F.interpolate(conv10, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner1(conv7)
         del conv7
@@ -280,7 +280,7 @@ class FeatureNet(nn.Module):
         
         output_feature[2] = self.output2(intra_feat) 
         if self.use_CA:
-            output_feature[2] = self.ca2(output_feature[2])+output_feature[2]
+            output_feature[2] = self.ca2(output_feature[2])
         # print(output_feature[2].size()) 
         intra_feat = F.interpolate(
             intra_feat, scale_factor=2.0, mode="bilinear", align_corners=False) + self.inner2(conv4)
@@ -289,7 +289,7 @@ class FeatureNet(nn.Module):
         
         output_feature[1] = self.output3(intra_feat)
         if self.use_CA:
-            output_feature[1] = self.ca3(output_feature[1])+output_feature[1]
+            output_feature[1] = self.ca3(output_feature[1])
         # print(output_feature[1].size())
         del intra_feat
 

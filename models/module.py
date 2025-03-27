@@ -33,7 +33,7 @@ class CoordAtt(nn.Module):
          self.bn1 = nn.BatchNorm2d(mip)
          self.conv2 = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
          self.conv3 = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
-         self.relu = h_swish()#nn.ReLU(inplace=True)  # 替换 h_swish()
+         self.relu = nn.ReLU(inplace=True)  # 替换 h_swish()
  
      def forward(self, x):
          identity = x
