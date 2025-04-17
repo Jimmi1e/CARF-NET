@@ -342,3 +342,4 @@ def depth_regression(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tenso
 def is_empty(x: torch.Tensor) -> bool:
     return x.numel() == 0
 
+homo_warping = differentiable_warping

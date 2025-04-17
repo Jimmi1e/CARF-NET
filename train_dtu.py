@@ -96,7 +96,7 @@ model = PatchmatchNet(
     propagate_neighbors=args.propagate_neighbors,
     evaluate_neighbors=args.evaluate_neighbors,
     # featureNet='none',
-    Attention_Selection='CBAM'
+    #Attention_Selection='CBAM'
     # image_size=(512,640)
 )
 if args.parallel and args.mode in ["train", "val"]:
@@ -224,38 +224,33 @@ def train_sample(sample, detailed_summary=False):
     optimizer.step()
 
     scalar_outputs = {"loss": loss}
+    # Remove references to stage2 here.
     image_outputs = {
         "depth_gt_stage_0": depth_gt[0] * mask[0],
         "depth_refined_stage_0": depth_patchmatch[0][-1] * mask[0],
         "depth_patchmatch_stage_1": depth_patchmatch[1][-1] * mask[1],
-        "depth_patchmatch_stage_2": depth_patchmatch[2][-1] * mask[2],
         "depth_patchmatch_stage_3": depth_patchmatch[3][-1] * mask[3],
         "ref_img": sample["images"][0]
     }
     if detailed_summary:
         image_outputs["errormap_refined_stage_0"] = (depth_patchmatch[0][-1] - depth_gt[0]).abs() * mask[0]
         image_outputs["errormap_patchmatch_stage_1"] = (depth_patchmatch[1][-1] - depth_gt[1]).abs() * mask[1]
-        image_outputs["errormap_patchmatch_stage_2"] = (depth_patchmatch[2][-1] - depth_gt[2]).abs() * mask[2]
         image_outputs["errormap_patchmatch_stage_3"] = (depth_patchmatch[3][-1] - depth_gt[3]).abs() * mask[3]
 
     scalar_outputs["abs_depth_error_patchmatch_stage_3"] = absolute_depth_error_metrics(
         depth_patchmatch[3][-1], depth_gt[3], mask[3] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = absolute_depth_error_metrics(
-        depth_patchmatch[2][-1], depth_gt[2], mask[2] > 0.5)
     scalar_outputs["abs_depth_error_patchmatch_stage_1"] = absolute_depth_error_metrics(
         depth_patchmatch[1][-1], depth_gt[1], mask[1] > 0.5)
     scalar_outputs["abs_depth_error_refined_stage_0"] = absolute_depth_error_metrics(
         depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5)
-    # threshold = 1mm
+    # threshold metrics for the refined stage
     scalar_outputs["thres1mm_error"] = threshold_metrics(depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5, 1.0)
-    # threshold = 2mm
     scalar_outputs["thres2mm_error"] = threshold_metrics(depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5, 2.0)
-    # threshold = 4mm
     scalar_outputs["thres4mm_error"] = threshold_metrics(depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5, 4.0)
-    # threshold = 8mm
     scalar_outputs["thres8mm_error"] = threshold_metrics(depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5, 8.0)
     
     return tensor2float(loss), tensor2float(scalar_outputs), tensor2numpy(image_outputs)
+
 
 
 @make_nograd_func
@@ -279,34 +274,27 @@ def test_sample(sample, detailed_summary=True):
         "depth_gt_stage_0": depth_gt[0] * mask[0],
         "depth_refined_stage_0": depth_patchmatch[0][-1] * mask[0],
         "depth_patchmatch_stage_1": depth_patchmatch[1][-1] * mask[1],
-        "depth_patchmatch_stage_2": depth_patchmatch[2][-1] * mask[2],
         "depth_patchmatch_stage_3": depth_patchmatch[3][-1] * mask[3],
         "ref_img": sample["images"][0]
     }
     if detailed_summary:
         image_outputs["errormap_refined_stage_0"] = (depth_patchmatch[0][-1] - depth_gt[0]).abs() * mask[0]
         image_outputs["errormap_patchmatch_stage_1"] = (depth_patchmatch[1][-1] - depth_gt[1]).abs() * mask[1]
-        image_outputs["errormap_patchmatch_stage_2"] = (depth_patchmatch[2][-1] - depth_gt[2]).abs() * mask[2]
         image_outputs["errormap_patchmatch_stage_3"] = (depth_patchmatch[3][-1] - depth_gt[3]).abs() * mask[3]
 
     scalar_outputs["abs_depth_error_patchmatch_stage_3"] = absolute_depth_error_metrics(
         depth_patchmatch[3][-1], depth_gt[3], mask[3] > 0.5)
-    scalar_outputs["abs_depth_error_patchmatch_stage_2"] = absolute_depth_error_metrics(
-        depth_patchmatch[2][-1], depth_gt[2], mask[2] > 0.5)
     scalar_outputs["abs_depth_error_patchmatch_stage_1"] = absolute_depth_error_metrics(
         depth_patchmatch[1][-1], depth_gt[1], mask[1] > 0.5)
     scalar_outputs["abs_depth_error_refined_stage_0"] = absolute_depth_error_metrics(
         depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5)
-    # threshold = 1mm
     scalar_outputs["thres1mm_error"] = threshold_metrics(depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5, 1.0)
-    # threshold = 2mm
     scalar_outputs["thres2mm_error"] = threshold_metrics(depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5, 2.0)
-    # threshold = 4mm
     scalar_outputs["thres4mm_error"] = threshold_metrics(depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5, 4.0)
-    # threshold = 8mm
     scalar_outputs["thres8mm_error"] = threshold_metrics(depth_patchmatch[0][-1], depth_gt[0], mask[0] > 0.5, 8.0)
     
     return tensor2float(loss), tensor2float(scalar_outputs), tensor2numpy(image_outputs)
+
 
 
 def create_stage_images(image: torch.Tensor) -> List[torch.Tensor]:

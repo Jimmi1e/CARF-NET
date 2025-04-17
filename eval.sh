@@ -4,7 +4,7 @@ CHECKPOINT_FILE="./checkpoints/model_000029.ckpt"
 
 
 DTU_TESTING="F:\691Project\dtu"
-python eval.py --scan_list ./lists/dtu/test.txt --input_folder "F:\691Project\dtu" --output_folder "F:\691Project\dtu" --checkpoint_path "./checkpoints/model_000015.ckpt" --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.8 "$@"
+python eval.py --scan_list ./lists/dtu/test.txt --input_folder "F:\691Project\dtu" --output_folder "F:\691Project\dtu" --checkpoint_path "./checkpoints/model_000007.ckpt" --num_views 5 --image_max_dim 1600 --geo_mask_thres 3 --photo_thres 0.8 "$@"
 
 # -------------------------------------------------------------------------------------
 # test on eth3d benchmark
