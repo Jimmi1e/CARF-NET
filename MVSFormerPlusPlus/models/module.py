@@ -125,7 +125,87 @@ class Conv3d(nn.Module):
         if self.bn is not None:
             init_bn(self.bn)
 
+class ConvBNReLU3D_Attention(nn.Module):
+    def __init__(self, in_channels, out_channels, 
+                 kernel_size=3, stride=1, padding=1, dilation: int = 1):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, 
+                     kernel_size, stride, padding,dilation, bias=False),
+            nn.BatchNorm3d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+        self.attention = CBAM3D(out_channels)
 
+    def forward(self, x):
+        x = self.conv(x)
+        return self.attention(x)
+
+class CBAM3D(nn.Module):
+    def __init__(self, in_channels, reduction_ratio=8, spatial_kernel=7):
+        super(CBAM3D, self).__init__()
+        # Channel Att
+        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.max_pool = nn.AdaptiveMaxPool3d(1)
+        self.mlp = nn.Sequential(
+            nn.Conv3d(in_channels, in_channels // reduction_ratio, kernel_size=1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(in_channels // reduction_ratio, in_channels, kernel_size=1, bias=False)
+        )
+        self.sigmoid_channel = nn.Sigmoid()
+        #Spatial Att
+        self.conv_spatial = nn.Conv3d(2, 1, kernel_size=spatial_kernel, 
+                                      padding=(spatial_kernel - 1) // 2, bias=False)
+        self.sigmoid_spatial = nn.Sigmoid()
+
+    def forward(self, x):
+        #x:[B, C, D, H, W]
+        #Channel Attention
+        avg_out = self.mlp(self.avg_pool(x))  # [B, C, 1, 1, 1]
+        max_out = self.mlp(self.max_pool(x))  # [B, C, 1, 1, 1]
+        channel_att = self.sigmoid_channel(avg_out + max_out)  # [B, C, 1, 1, 1]
+        x_channel = x * channel_att
+
+        # Spatial Attention
+        avg_out_spatial = torch.mean(x_channel, dim=1, keepdim=True)  # [B,1,D,H,W]
+        max_out_spatial, _ = torch.max(x_channel, dim=1, keepdim=True)  # [B,1,D,H,W]
+        spatial_cat = torch.cat([avg_out_spatial, max_out_spatial], dim=1)  # [B,2,D,H,W]
+        spatial_att = self.sigmoid_spatial(self.conv_spatial(spatial_cat))  # [B,1,D,H,W]
+        out = x_channel * spatial_att
+        return out
+
+
+class Deconv3d_Attention(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1,
+                 relu=True, bn=True, bn_momentum=0.1, init_method="xavier", **kwargs):
+        super(Deconv3d_Attention, self).__init__()
+        self.out_channels = out_channels
+        self.conv = nn.ConvTranspose3d(
+            in_channels, out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            bias=(not bn),
+            **kwargs
+        )
+        self.bn = nn.BatchNorm3d(out_channels, momentum=bn_momentum) if bn else None
+        self.relu = relu
+        self.attention = CBAM3D(out_channels)
+
+    def forward(self, x):
+        x = self.conv(x)
+        if self.bn is not None:
+            x = self.bn(x)
+        if self.relu:
+            x = F.relu(x, inplace=True)
+        x = self.attention(x)
+        return x
+
+    def init_weights(self, init_method):
+        init_uniform(self.conv, init_method)
+        if self.bn is not None:
+            init_bn(self.bn)
+
+            
 class Deconv3d(nn.Module):
     """Applies a 3D deconvolution (optionally with batch normalization and relu activation)
        over an input signal composed of several input planes.
@@ -376,12 +456,12 @@ class CostRegNet(nn.Module):
         self.conv4 = Conv3d(base_channels * 4, base_channels * 4, padding=1)
 
         self.conv5 = Conv3d(base_channels * 4, base_channels * 8, stride=2, padding=1)
-        self.conv6 = Conv3d(base_channels * 8, base_channels * 8, padding=1)
-
+        self.conv6 = ConvBNReLU3D_Attention(base_channels * 8, base_channels * 8, padding=1)
+        #self.conv6 = Conv3d(base_channels * 8, base_channels * 8, padding=1)
         self.conv7 = Deconv3d(base_channels * 8, base_channels * 4, stride=2, padding=1, output_padding=1)
         self.conv9 = Deconv3d(base_channels * 4, base_channels * 2, stride=2, padding=1, output_padding=1)
-        self.conv11 = Deconv3d(base_channels * 2, base_channels * 1, stride=2, padding=1, output_padding=1)
-
+        #self.conv11 = Deconv3d(base_channels * 2, base_channels * 1, stride=2, padding=1, output_padding=1)
+        self.conv11 = Deconv3d_Attention(base_channels * 2, base_channels * 1, stride=2, padding=1, output_padding=1)
         if in_channels != base_channels:
             self.inner = nn.Conv3d(in_channels, base_channels, 1, 1)
         else:
@@ -418,8 +498,8 @@ class CostRegNet2D(nn.Module):
         self.conv4 = Conv3d(base_channel * 4, base_channel * 4, padding=1)
 
         self.conv5 = Conv3d(base_channel * 4, base_channel * 8, kernel_size=(1, 3, 3), stride=(1, 2, 2), padding=(0, 1, 1))
-        self.conv6 = Conv3d(base_channel * 8, base_channel * 8, padding=1)
-
+        self.conv6 = ConvBNReLU3D_Attention(base_channel * 8, base_channel * 8, padding=1)
+        #self.conv6 = Conv3d(base_channel * 8, base_channel * 8, padding=1)  
         self.conv7 = nn.Sequential(
             nn.ConvTranspose3d(base_channel * 8, base_channel * 4, kernel_size=(1, 3, 3), padding=(0, 1, 1), output_padding=(0, 1, 1), stride=(1, 2, 2), bias=False),
             nn.BatchNorm3d(base_channel * 4),
@@ -430,11 +510,12 @@ class CostRegNet2D(nn.Module):
             nn.BatchNorm3d(base_channel * 2),
             nn.ReLU(inplace=True))
 
-        self.conv11 = nn.Sequential(
-            nn.ConvTranspose3d(base_channel * 2, base_channel, kernel_size=(1, 3, 3), padding=(0, 1, 1), output_padding=(0, 1, 1), stride=(1, 2, 2), bias=False),
-            nn.BatchNorm3d(base_channel),
-            nn.ReLU(inplace=True))
-
+        # self.conv11 = nn.Sequential(
+        #     nn.ConvTranspose3d(base_channel * 2, base_channel, kernel_size=(1, 3, 3), padding=(0, 1, 1), output_padding=(0, 1, 1), stride=(1, 2, 2), bias=False),
+        #     nn.BatchNorm3d(base_channel),
+        #     nn.ReLU(inplace=True))
+        self.conv11 = Deconv3d_Attention(base_channel * 2, base_channel, kernel_size=3, stride=(1, 2, 2),  padding=1, output_padding=(0, 1, 1))
+        
         self.prob = nn.Conv3d(base_channel, 1, 1, stride=1, padding=0)
 
     def forward(self, x, *kwargs):
@@ -461,7 +542,7 @@ class CostRegNet3D(nn.Module):
         self.conv4 = Conv3d(base_channel * 4, base_channel * 4, padding=1)
 
         self.conv5 = Conv3d(base_channel * 4, base_channel * 8, kernel_size=3, stride=(1, 2, 2), padding=1)
-        self.conv6 = Conv3d(base_channel * 8, base_channel * 8, padding=1)
+        self.conv6 = ConvBNReLU3D_Attention(base_channel * 8, base_channel * 8, padding=1)
 
         self.conv7 = nn.Sequential(
             nn.ConvTranspose3d(base_channel * 8, base_channel * 4, kernel_size=3, padding=1, output_padding=(0, 1, 1), stride=(1, 2, 2), bias=False),
@@ -473,11 +554,13 @@ class CostRegNet3D(nn.Module):
             nn.BatchNorm3d(base_channel * 2),
             nn.ReLU(inplace=True))
 
-        self.conv11 = nn.Sequential(
-            nn.ConvTranspose3d(base_channel * 2, base_channel, kernel_size=3, padding=1, output_padding=(0, 1, 1), stride=(1, 2, 2), bias=False),
-            nn.BatchNorm3d(base_channel),
-            nn.ReLU(inplace=True))
+        # self.conv11 = nn.Sequential(
+        #     nn.ConvTranspose3d(base_channel * 2, base_channel, kernel_size=3, padding=1, output_padding=(0, 1, 1), stride=(1, 2, 2), bias=False),
+        #     nn.BatchNorm3d(base_channel),
+        #     nn.ReLU(inplace=True))
 
+        self.conv11 = Deconv3d_Attention(base_channel * 2, base_channel, kernel_size=3, stride=(1, 2, 2), padding=1, output_padding=(0, 1, 1))
+        
         if in_channels != base_channel:
             self.inner = nn.Conv3d(in_channels, base_channel, 1, 1)
         else:
@@ -608,7 +691,8 @@ class PureTransformerCostReg(nn.Module):
         self.down_rate = down_rate
         self.use_pe_proj = kwargs.get("use_pe_proj", True)
         if position_encoding and self.use_pe_proj:
-            self.pe_proj = nn.Conv3d(base_channel * 3, base_channel, 1, 1, bias=False)
+            #self.pe_proj = nn.Conv3d(base_channel * 3, base_channel, 1, 1, bias=False)
+            self.pe_proj = ConvBNReLU3D_Attention(base_channel * 3, base_channel, 1, 1)
         else:
             self.pe_proj = nn.Identity()
 
