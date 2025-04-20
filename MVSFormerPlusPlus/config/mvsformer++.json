@@ -1,6 +1,6 @@
 {
     "name": "DINOv2",
-    "n_gpu": 4,
+    "n_gpu": 1,
     "fp16": true,
     "arch": {
         "bf16": true,
@@ -133,7 +133,7 @@
             "type": "DTULoader",
             "args": {
                 "data_set_type": "multi_scale",
-                "datapath": "./MVS_data/DTU/mvs_training",
+                "datapath": "/nfs/speed-scratch/ch_yuhan/dtuTrainingData/dtu/",
                 "train_data_list": "lists/dtu/trainval.txt",
                 "val_data_list": "lists/dtu/test.txt",
                 "mode": "train",
@@ -157,15 +157,15 @@
                         1.2
                     ],
                     "scale_batch_map": {
-                        "512": 4,
-                        "576": 4,
-                        "640": 4,
-                        "704": 4,
-                        "768": 2,
-                        "832": 2,
-                        "896": 2,
-                        "960": 2,
-                        "1024": 2
+                        "512": 1,
+                        "576": 1,
+                        "640": 1,
+                        "704": 1,
+                        "768": 1,
+                        "832": 1,
+                        "896": 1,
+                        "960": 1,
+                        "1024": 1
                     }
                 },
                 "interval_scale": 1.06,
@@ -173,7 +173,7 @@
                 "height": 1152,
                 "width": 1536,
                 "shuffle": true,
-                "batch_size": 16,
+                "batch_size": 1,
                 "random_crop": true,
                 "consist_crop": false,
                 "num_workers": 4,

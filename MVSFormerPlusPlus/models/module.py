@@ -691,8 +691,8 @@ class PureTransformerCostReg(nn.Module):
         self.down_rate = down_rate
         self.use_pe_proj = kwargs.get("use_pe_proj", True)
         if position_encoding and self.use_pe_proj:
-            #self.pe_proj = nn.Conv3d(base_channel * 3, base_channel, 1, 1, bias=False)
-            self.pe_proj = ConvBNReLU3D_Attention(base_channel * 3, base_channel, 1, 1)
+            self.pe_proj = nn.Conv3d(base_channel * 3, base_channel, 1, 1, bias=False)
+            #self.pe_proj = ConvBNReLU3D_Attention(base_channel * 3, base_channel, 1, 1)
         else:
             self.pe_proj = nn.Identity()
 

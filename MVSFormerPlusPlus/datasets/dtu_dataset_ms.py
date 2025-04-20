@@ -270,7 +270,7 @@ class DTUMVSDataset(Dataset):
         for i, vid in enumerate(view_ids):
             # NOTE that the id in image file names is from 1 to 49 (not 0~48)
             # NOTE that DTU_origin/Rectified saves the images with the original size (1200x1600)
-            img_filename = os.path.join(self.datapath, 'Rectified_raw/{}/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx))
+            img_filename = os.path.join(self.datapath, 'Rectified/{}/rect_{:0>3}_{}_r5000.png'.format(scan, vid + 1, light_idx))
             mask_filename_hr = os.path.join(self.datapath, 'Depths_raw/{}/depth_visual_{:0>4}.png'.format(scan, vid))
             depth_filename_hr = os.path.join(self.datapath, 'Depths_raw/{}/depth_map_{:0>4}.pfm'.format(scan, vid))
             # these poses are based on original resolution
@@ -291,7 +291,7 @@ class DTUMVSDataset(Dataset):
                 enlarge_scale = self.resize_range[0] + random.random() * (self.resize_range[1] - self.resize_range[0])
                 resize_scale_h = np.clip((crop_h * enlarge_scale) / 1200, 0.45, 1.0)
                 resize_scale_w = np.clip((crop_w * enlarge_scale) / 1600, 0.45, 1.0)
-                resize_scale = max(resize_scale_h, resize_scale_w)
+                resize_scale = max(resize_scale_h, resize_scale_w)  
             else:
                 crop_h, crop_w = self.height, self.width
                 resize_scale = self.resize_scale
@@ -299,7 +299,6 @@ class DTUMVSDataset(Dataset):
             img = np.asarray(img)
             if resize_scale != 1.0:
                 img, depth_hr, intrinsics, depth_mask_hr = self.pre_resize(img, depth_hr, intrinsics, depth_mask_hr, resize_scale)
-
             if i == 0:  # reference view
                 while True:  # get resonable offset
                     # finally random crop

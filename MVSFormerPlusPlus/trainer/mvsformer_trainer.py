@@ -173,6 +173,8 @@ class Trainer(BaseTrainer):
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_norm, error_if_nonfinite=False)
 
                 if self.fp16:
+                    #print(type(self.scaler))
+                    #print(self.scaler)
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
                     new_scale = int(self.scaler.get_scale())
