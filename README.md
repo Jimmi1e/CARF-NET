@@ -1,23 +1,5 @@
-# PatchmatchNet (CVPR2021 Oral)
-official source code of paper 'PatchmatchNet: Learned Multi-View Patchmatch Stereo'
-![](imgs/structure_teaser.jpg)
-
-## Updates
-- 13.12.2021: New unified format for training and evaluation datasets, support for arbitrary image sizes
-  and multi-camera setups, and new names for script parameters.
-- 27.09.2021: The code now allows for Torchscript export and includes a pre-trained TorchScript module.
-
-## Introduction
-PatchmatchNet is a novel cascade formulation of learning-based Patchmatch which aims at decreasing memory consumption and
-computation time for high-resolution multi-view stereo. If you find this project useful for your research, please cite:
-```
-@misc{wang2020patchmatchnet,
-      title={PatchmatchNet: Learned Multi-View Patchmatch Stereo}, 
-      author={Fangjinhua Wang and Silvano Galliani and Christoph Vogel and Pablo Speciale and Marc Pollefeys},
-      journal={CVPR},
-      year={2021}
-}
-```
+#MVSNet 
+![Uploading overallstruct.png…]()
 
 ## Installation
 ### Requirements
@@ -29,7 +11,7 @@ pip install -r requirements.txt
 ```
 
 ## Reproducing Results
-* Download our pre-processed dataset:
+* Download pre-processed dataset:
   [DTU's evaluation set](https://drive.google.com/file/d/1jN8yEQX0a-S22XwUjISM8xSJD39pFLL_/view?usp=sharing),
   [Tanks & Temples](https://drive.google.com/file/d/1gAfmeoGNEFl9dL4QcAU4kF0BAyTd-r8Z/view?usp=sharing) and
   [ETH3D benchmark](https://polybox.ethz.ch/index.php/s/pmTGWobErOnhEg0). Each dataset is already organized as follows:
@@ -107,10 +89,9 @@ The results look like:
 
 | Acc. (mm) | Comp. (mm) | Overall (mm) |
 |-----------|------------|--------------|
-| 0.427     | 0.277      | 0.352        |
+| 0.406     | 0.275      | 0.341        |
 
-* For detailed quantitative results on Tanks & Temples and ETH3D, please check the leaderboards
-  ([Tanks & Temples](https://www.tanksandtemples.org/details/1170/), [ETH3D](https://www.eth3d.net/result_details?id=216))
+
 
 ## Evaluation on Custom Dataset
 * For evaluation, we support preparing the custom dataset from COLMAP's results. The script `colmap_input.py`
@@ -209,17 +190,6 @@ script.
   store the checkpoints. 
 * Uncomment the appropriate section for legacy training and comment out the other entry.
 * Train the model by running `sh train.sh`.
-
-### Note:
-`--patchmatch_iteration` represents the number of iterations of Patchmatch on multi-stages (e.g., the default number `1,2,2`
-means 1 iteration on stage 1, 2 iterations on stage 2 and 2 iterations on stage 3). `--propagate_neighbors` represents the
-number of neighbors for adaptive propagation (e.g., the default number `0,8,16` means no propagation for Patchmatch on
-stage 1, using 8 neighbors for propagation on stage 2 and using 16 neighbors for propagation on stage 3). As explained in
-our paper, we do not include adaptive propagation for the last iteration of Patchmatch on stage 1 due to the requirement
-of photometric consistency filtering. So in our default case (also for our pretrained model), we set the number of propagation
-neighbors on stage 1 as `0` since the number of iteration on stage 1 is `1`. If you want to train the model with more
-iterations on stage 1, change the corresponding number in `--propagate_neighbors` to include adaptive propagation for
-Patchmatch expect for the last iteration.
 
 ## Acknowledgements
 This project is done in collaboration with "Microsoft Mixed Reality & AI Zurich Lab".
